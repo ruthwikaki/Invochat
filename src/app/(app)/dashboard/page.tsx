@@ -1,5 +1,5 @@
 
-import { getDashboardData, getMorningBriefing, getCompanySettings } from '@/app/data-actions';
+import { getDashboardData, getCompanySettings, getMorningBriefing } from '@/app/data-actions';
 import { DashboardClientPage } from './dashboard-client-page';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -54,7 +54,7 @@ export default async function DashboardPage({
   searchParams: { [key: string]: string | string[] | undefined };
 }) {
     const dateRange = typeof searchParams?.range === 'string' ? searchParams.range : '90d';
-    let metrics: DashboardMetrics = emptyMetrics;
+    let metrics: DashboardMetrics | null = emptyMetrics;
     let briefing;
     let settings: CompanySettings = emptySettings;
     let metricsError = null;
@@ -115,3 +115,5 @@ export default async function DashboardPage({
         </AppPage>
     );
 }
+
+    

@@ -2,12 +2,14 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, PurchaseOrderFormData, ChannelFee, Integration, SalesAnalytics, CustomerAnalytics, ReorderSuggestion, PurchaseOrderWithItems, PurchaseOrderWithItemsAndSupplier, DashboardMetrics, InventoryAnalytics, AuditLogEntry, FeedbackWithMessages } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, PurchaseOrderFormData, ChannelFee, Integration, SalesAnalytics, CustomerAnalytics, ReorderSuggestion, PurchaseOrderWithItems, PurchaseOrderWithItemsAndSupplier, AuditLogEntry, FeedbackWithMessages } from '@/types';
 import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, SupplierPerformanceReportSchema, ReorderSuggestionSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, InventoryAnalyticsSchema, SupplierFormSchema, DashboardMetricsSchema } from '@/types';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import type { Json } from '@/types/database.types';
 import { logger } from '@/lib/logger';
+import { isRedisEnabled, redisClient } from '@/lib/redis';
+import { config } from '@/config/app-config';
 
 // --- Input Validation Schemas ---
 const DatabaseQueryParamsSchema = z.object({
@@ -19,6 +21,35 @@ const DatabaseQueryParamsSchema = z.object({
   sortBy: z.string().max(50).optional(),
   sortDirection: z.enum(['asc', 'desc']).optional()
 });
+
+// --- Caching Helper ---
+async function getCachedData<T>(key: string, fetchFn: () => Promise<T>, ttl: number = config.redis.ttl.dashboard): Promise<T> {
+  if (isRedisEnabled) {
+    try {
+      const cached = await redisClient.get(key);
+      if (cached) {
+        logger.debug(`[Cache] HIT for key: ${key}`);
+        return JSON.parse(cached);
+      }
+    } catch (error) {
+      logError(error, { context: `Redis cache read failed for key: ${key}`});
+    }
+  }
+  
+  logger.debug(`[Cache] MISS for key: ${key}`);
+  const data = await fetchFn();
+  
+  if (isRedisEnabled) {
+    try {
+      await redisClient.setex(key, ttl, JSON.stringify(data));
+    } catch (error) {
+      logError(error, { context: `Redis cache write failed for key: ${key}`});
+    }
+  }
+
+  return data;
+}
+
 
 // --- Authorization Helper ---
 /**
@@ -33,7 +64,6 @@ export async function checkUserPermission(userId: string, requiredRole: 'Owner' 
     }
     
     const supabase = getServiceRoleClient();
-    // Explicitly cast p_required_role to the 'company_role' enum to resolve ambiguity
     const { data, error } = await supabase.rpc('check_user_permission', { 
         p_user_id: userId, 
         p_required_role: requiredRole as any
@@ -333,7 +363,7 @@ export async function getSalesAnalyticsFromDB(companyId: string): Promise<SalesA
         logError(error, { context: 'getSalesAnalyticsFromDB failed' });
         throw error;
     }
-    return SalesAnalyticsSchema.parse(data[0] || {});
+    return SalesAnalyticsSchema.parse(data);
 }
 
 export async function getCustomerAnalyticsFromDB(companyId: string): Promise<CustomerAnalytics> {
@@ -577,7 +607,7 @@ export async function createPurchaseOrderInDb(companyId: string, userId: string,
         p_user_id: userId,
         p_supplier_id: poData.supplier_id,
         p_status: poData.status,
-        p_notes: poData.notes,
+        p_notes: poData.notes || '',
         p_expected_arrival: poData.expected_arrival_date?.toISOString(),
         p_line_items: poData.line_items as unknown as Json,
     }).select('id').single();
@@ -601,7 +631,7 @@ export async function updatePurchaseOrderInDb(poId: string, companyId: string, u
         p_user_id: userId,
         p_supplier_id: poData.supplier_id,
         p_status: poData.status,
-        p_notes: poData.notes,
+        p_notes: poData.notes || '',
         p_expected_arrival: poData.expected_arrival_date?.toISOString(),
         p_line_items: poData.line_items as unknown as Json,
     });
@@ -794,12 +824,12 @@ export async function getHistoricalSalesForSingleSkuFromDB(
     return data || [];
 }
 
-export async function getDashboardMetrics(companyId: string, period: string | number): Promise<DashboardMetrics> {
+export async function getDashboardMetrics(companyId: string, period: string): Promise<DashboardMetrics> {
     if (!z.string().uuid().safeParse(companyId).success) {
         throw new Error('Invalid company ID format');
     }
     
-    const days = typeof period === 'number' ? period : parseInt(String(period).replace(/\D/g, ''), 10) || 30;
+    const days = parseInt(String(period).replace(/\D/g, ''), 10) || 30;
     
     try {
         const supabase = getServiceRoleClient();
@@ -923,3 +953,5 @@ export async function getFeedbackFromDB(companyId: string, params: { query?: str
     if(error) throw error;
     return {items: FeedbackSchema.array().parse(data || []), totalCount: count || 0};
 }
+
+    

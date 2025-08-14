@@ -156,10 +156,15 @@ export interface Database {
           alert_settings: Json | null
           company_id: string
           created_at: string
+          critical_stock_threshold: number
           currency: string
           dead_stock_days: number
+          email_notifications: boolean
           fast_moving_days: number
           high_value_threshold: number
+          low_stock_threshold: number
+          morning_briefing_enabled: boolean
+          morning_briefing_time: string
           overstock_multiplier: number
           predictive_stock_days: number
           tax_rate: number
@@ -170,10 +175,15 @@ export interface Database {
           alert_settings?: Json | null
           company_id: string
           created_at?: string
+          critical_stock_threshold?: number
           currency?: string
           dead_stock_days?: number
+          email_notifications?: boolean
           fast_moving_days?: number
           high_value_threshold?: number
+          low_stock_threshold?: number
+          morning_briefing_enabled?: boolean
+          morning_briefing_time?: string
           overstock_multiplier?: number
           predictive_stock_days?: number
           tax_rate?: number
@@ -184,10 +194,15 @@ export interface Database {
           alert_settings?: Json | null
           company_id?: string
           created_at?: string
+          critical_stock_threshold?: number
           currency?: string
           dead_stock_days?: number
+          email_notifications?: boolean
           fast_moving_days?: number
           high_value_threshold?: number
+          low_stock_threshold?: number
+          morning_briefing_enabled?: boolean
+          morning_briefing_time?: string
           overstock_multiplier?: number
           predictive_stock_days?: number
           tax_rate?: number
@@ -430,6 +445,7 @@ export interface Database {
           created_by: string
           error_count: number | null
           errors: Json | null
+          failed_rows: number | null
           file_name: string
           id: string
           import_type: string
@@ -445,6 +461,7 @@ export interface Database {
           created_by: string
           error_count?: number | null
           errors?: Json | null
+          failed_rows?: number | null
           file_name: string
           id?: string
           import_type: string
@@ -460,6 +477,7 @@ export interface Database {
           created_by?: string
           error_count?: number | null
           errors?: Json | null
+          failed_rows?: number | null
           file_name?: string
           id?: string
           import_type?: string
@@ -1750,4 +1768,4 @@ export type Enums<
   ? Database["public"]["Enums"][PublicEnumNameOrOptions]
   : never
 
-
+    

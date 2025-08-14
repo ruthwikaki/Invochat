@@ -142,7 +142,7 @@ export type Refund = z.infer<typeof RefundSchema>;
 export const CustomerSchema = z.object({
   id: z.string().uuid(),
   company_id: z.string().uuid(),
-  name: z.string().nullable(), // name is nullable in db
+  name: z.string().nullable(),
   email: z.string().email().nullable(),
   total_orders: z.number().int().default(0),
   total_spent: z.number().int().default(0),
@@ -219,7 +219,7 @@ export const PurchaseOrderWithItemsAndSupplierSchema = z.object({
         product_name: z.string(),
         variant_id: z.string().uuid(),
     })).nullable()
-});
+}).passthrough();
 
 export type PurchaseOrderWithItemsAndSupplier = z.infer<typeof PurchaseOrderWithItemsAndSupplierSchema>;
 
@@ -236,7 +236,7 @@ export const CompanySettingsSchema = z.object({
   updated_at: z.string().datetime({ offset: true }).nullable(),
   overstock_multiplier: z.number().int().default(3),
   high_value_threshold: z.number().int().default(100000),
-  alert_settings: z.record(z.unknown()).default({}),
+  alert_settings: z.record(z.string(), z.unknown()).default({}),
   email_notifications: z.boolean().default(true),
   morning_briefing_enabled: z.boolean().default(true),
   morning_briefing_time: z.string().default('08:00'),
@@ -517,7 +517,7 @@ export const AlertSchema = z.object({
   message: z.string(),
   severity: z.string(),
   timestamp: z.string(),
-  metadata: z.record(z.unknown()),
+  metadata: z.record(z.string(), z.unknown()),
   read: z.boolean().optional(),
 });
 export type Alert = z.infer<typeof AlertSchema>;
@@ -553,3 +553,5 @@ export const ImportJobSchema = z.object({
 export type ImportJob = z.infer<typeof ImportJobSchema>;
 
 export type { Json };
+
+    

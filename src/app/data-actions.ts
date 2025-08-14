@@ -80,8 +80,8 @@ export async function getCustomers() {
 
 export async function getUnifiedInventory(params: { query: string, page: number, limit: number, status: string, sortBy: string, sortDirection: string }) {
     try {
-        const { companyId } = await getAuthContext();
-        await checkUserPermission(companyId, 'Member');
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Member');
         const offset = (params.page - 1) * params.limit;
         return await getUnifiedInventoryFromDB(companyId, { ...params, offset });
     } catch (e) {
@@ -92,8 +92,8 @@ export async function getUnifiedInventory(params: { query: string, page: number,
 
 export async function getInventoryAnalytics() {
     try {
-        const { companyId } = await getAuthContext();
-        await checkUserPermission(companyId, 'Member');
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Member');
         return await getInventoryAnalyticsFromDB(companyId);
     } catch (e) {
         logError(e, {context: 'getInventoryAnalytics action failed, returning default'});
@@ -266,8 +266,8 @@ export async function updateCompanySettings(formData: FormData) {
 
 export async function getSalesData(params: { query: string; page: number, limit: number }) {
     try {
-        const { companyId } = await getAuthContext();
-        await checkUserPermission(companyId, 'Member');
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Member');
         const offset = (params.page - 1) * params.limit;
         return await getSalesFromDB(companyId, { ...params, offset });
     } catch(e) {
@@ -278,8 +278,8 @@ export async function getSalesData(params: { query: string; page: number, limit:
 
 export async function exportSales(params: { query: string }) {
     try {
-        const { companyId } = await getAuthContext();
-        await checkUserPermission(companyId, 'Member');
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Member');
         const { items } = await getSalesFromDB(companyId, { ...params, offset: 0, limit: 5000 });
         if (items.length >= 5000) {
             throw new Error("Export limited to 5,000 items. Please filter your results.");
@@ -294,8 +294,8 @@ export async function exportSales(params: { query: string }) {
 
 export async function getSalesAnalytics(): Promise<SalesAnalytics> {
     try {
-        const { companyId } = await getAuthContext();
-        await checkUserPermission(companyId, 'Member');
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Member');
         return await getSalesAnalyticsFromDB(companyId);
     } catch (e) {
         logError(e, {context: 'getSalesAnalytics action failed, returning default'});
@@ -305,8 +305,8 @@ export async function getSalesAnalytics(): Promise<SalesAnalytics> {
 
 export async function getCustomersData(params: { query: string; page: number, limit: number }) {
     try {
-        const { companyId } = await getAuthContext();
-        await checkUserPermission(companyId, 'Member');
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Member');
         const offset = (params.page - 1) * params.limit;
         return await getCustomersFromDB(companyId, { ...params, offset });
     } catch (e) {
@@ -331,8 +331,8 @@ export async function deleteCustomer(formData: FormData) {
 
 export async function exportCustomers(params: { query: string }) {
     try {
-        const { companyId } = await getAuthContext();
-        await checkUserPermission(companyId, 'Member');
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Member');
         const { items } = await getCustomersFromDB(companyId, { ...params, offset: 0, limit: 5000 });
         if (items.length >= 5000) {
             throw new Error("Export limited to 5,000 items. Please filter your results.");
@@ -347,8 +347,8 @@ export async function exportCustomers(params: { query: string }) {
 
 export async function getCustomerAnalytics(): Promise<CustomerAnalytics> {
     try {
-        const { companyId } = await getAuthContext();
-        await checkUserPermission(companyId, 'Member');
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Member');
         return await getCustomerAnalyticsFromDB(companyId);
     } catch (e) {
         logError(e, { context: 'getCustomerAnalytics action failed, returning default'});
@@ -358,8 +358,8 @@ export async function getCustomerAnalytics(): Promise<CustomerAnalytics> {
 
 export async function exportInventory(params: { query: string; status: string; sortBy: string; sortDirection: string; }) {
     try {
-        const { companyId } = await getAuthContext();
-        await checkUserPermission(companyId, 'Member');
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Member');
         const { items, totalCount } = await getUnifiedInventoryFromDB(companyId, { ...params, offset: 0, limit: 5000 });
         if (totalCount >= 5000) {
             throw new Error("Export limited to 5,000 items. Please filter your results.");
@@ -388,7 +388,8 @@ export async function exportInventory(params: { query: string; status: string; s
 
 export async function getPurchaseOrders() {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Member');
         return await getPurchaseOrdersFromDB(companyId);
     } catch (e) {
         logError(e, {context: 'getPurchaseOrders action failed, returning empty state'});
@@ -397,7 +398,8 @@ export async function getPurchaseOrders() {
 }
 
 export async function getPurchaseOrderById(id: string) {
-    const { companyId } = await getAuthContext();
+    const { companyId, userId } = await getAuthContext();
+    await checkUserPermission(userId, 'Member');
     const po = await getPurchaseOrderByIdFromDB(id, companyId);
     if (!po) return null;
 
@@ -466,12 +468,14 @@ export async function deletePurchaseOrder(formData: FormData) {
 }
 
 export async function getInventoryLedger(variantId: string) {
-    const { companyId } = await getAuthContext();
+    const { companyId, userId } = await getAuthContext();
+    await checkUserPermission(userId, 'Member');
     return getInventoryLedgerFromDB(companyId, variantId);
 }
 
 export async function getChannelFees() {
-    const { companyId } = await getAuthContext();
+    const { companyId, userId } = await getAuthContext();
+    await checkUserPermission(userId, 'Member');
     return getChannelFeesFromDB(companyId);
 }
 
@@ -520,8 +524,8 @@ export async function getMorningBriefing(metrics: DashboardMetrics, companyName?
 
 export async function getSupplierPerformanceReportData() {
     try {
-        const { companyId } = await getAuthContext();
-        await checkUserPermission(companyId, 'Member');
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Member');
         return await getSupplierPerformanceFromDB(companyId);
     } catch(e) {
         logError(e, { context: 'getSupplierPerformanceReportData failed, returning empty array'});
@@ -531,8 +535,8 @@ export async function getSupplierPerformanceReportData() {
 
 export async function getInventoryTurnoverReportData() {
     try {
-        const { companyId } = await getAuthContext();
-        await checkUserPermission(companyId, 'Member');
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Member');
         return await getInventoryTurnoverFromDB(companyId, 90);
     } catch(e) {
         logError(e, { context: 'getInventoryTurnoverReportData failed, returning null'});
@@ -541,7 +545,8 @@ export async function getInventoryTurnoverReportData() {
 }
 
 export async function getConversations(): Promise<Conversation[]> {
-    const { companyId } = await getAuthContext();
+    const { companyId, userId } = await getAuthContext();
+    await checkUserPermission(userId, 'Member');
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.from('conversations').select('*').eq('company_id', companyId);
     if(error) {
@@ -552,7 +557,8 @@ export async function getConversations(): Promise<Conversation[]> {
 }
 
 export async function getMessages(conversationId: string): Promise<Message[]> {
-    const { companyId } = await getAuthContext();
+    const { companyId, userId } = await getAuthContext();
+    await checkUserPermission(userId, 'Member');
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.from('messages').select('*').eq('company_id', companyId).eq('conversation_id', conversationId);
     
@@ -618,7 +624,7 @@ export async function handleUserMessage(params: { content: string, conversationI
         is_error: aiResponse.is_error,
     };
 
-    const { error: insertError } = await getServiceRoleClient().from('messages').insert([newMessage as any]);
+    const { error: insertError } = await getServiceRoleClient().from('messages').insert([newMessage]);
     if(insertError) {
         logError(insertError, {context: 'Failed to save assistant message'});
     }
@@ -644,8 +650,8 @@ export async function logUserFeedback(params: { subjectId: string, subjectType: 
 }
 
 export async function getDeadStockPageData() {
-    const { companyId } = await getAuthContext();
-    await checkUserPermission(companyId, 'Member');
+    const { companyId, userId } = await getAuthContext();
+    await checkUserPermission(userId, 'Member');
     const settings = await getSettings(companyId);
     const deadStockData = await getDeadStockReportFromDB(companyId);
     return {
@@ -656,8 +662,8 @@ export async function getDeadStockPageData() {
 
 export async function getAdvancedAbcReport() {
     try {
-        const { companyId } = await getAuthContext();
-        await checkUserPermission(companyId, 'Member');
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Member');
         return await getAbcAnalysisFromDB(companyId);
     } catch(e) {
         logError(e, { context: 'getAdvancedAbcReport failed, returning null'});
@@ -667,8 +673,8 @@ export async function getAdvancedAbcReport() {
 
 export async function getAdvancedSalesVelocityReport() {
     try {
-        const { companyId } = await getAuthContext();
-        await checkUserPermission(companyId, 'Member');
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Member');
         return await getSalesVelocityFromDB(companyId, 90, 20);
     } catch(e) {
         logError(e, { context: 'getAdvancedSalesVelocityReport failed, returning null'});
@@ -678,8 +684,8 @@ export async function getAdvancedSalesVelocityReport() {
 
 export async function getAdvancedGrossMarginReport() {
     try {
-        const { companyId } = await getAuthContext();
-        await checkUserPermission(companyId, 'Member');
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Member');
         return await getGrossMarginAnalysisFromDB(companyId);
     } catch(e) {
         logError(e, { context: 'getAdvancedGrossMarginReport failed, returning null'});
@@ -689,8 +695,8 @@ export async function getAdvancedGrossMarginReport() {
 
 export async function getImportHistory() {
     const supabase = getServiceRoleClient();
-    const { companyId } = await getAuthContext();
-    await checkUserPermission(companyId, 'Member');
+    const { companyId, userId } = await getAuthContext();
+    await checkUserPermission(userId, 'Member');
     const { data, error } = await supabase.from('imports').select('*').eq('company_id', companyId).order('created_at', { ascending: false }).limit(20);
     if(error) throw error;
     return data;
@@ -732,8 +738,8 @@ export async function getFeedbackData(params: {
 
 export async function getDashboardData(period: string) {
     try {
-        const { companyId } = await getAuthContext();
-        await checkUserPermission(companyId, 'Member');
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Member');
         return await getDashboardMetrics(companyId, period);
     } catch(e) {
         logError(e, { context: 'getDashboardData failed' });
@@ -742,6 +748,9 @@ export async function getDashboardData(period: string) {
 }
 
 export async function refreshData() {
-    const { companyId } = await getAuthContext();
+    const { companyId, userId } = await getAuthContext();
+    await checkUserPermission(userId, 'Member');
     await refreshMaterializedViews(companyId);
 }
+
+    
