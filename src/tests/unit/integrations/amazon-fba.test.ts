@@ -1,5 +1,4 @@
 
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { runAmazonFbaFullSync } from '@/features/integrations/services/platforms/amazon_fba';
 import * as encryption from '@/features/integrations/services/encryption';
@@ -45,7 +44,7 @@ describe('Amazon FBA Integration Service', () => {
     
     vi.spyOn(encryption, 'getSecret').mockResolvedValue(JSON.stringify(mockCredentials));
     vi.spyOn(redis, 'invalidateCompanyCache').mockResolvedValue(undefined);
-    vi.spyOn(database, 'refreshMaterializedViews').mockResolvedValue(undefined);
+    (database.refreshMaterializedViews as any).mockResolvedValue(undefined);
   });
 
   it('should run a full sync simulation successfully', async () => {
@@ -82,7 +81,3 @@ describe('Amazon FBA Integration Service', () => {
     expect(supabaseMock.update).toHaveBeenCalledWith({ sync_status: 'failed' });
   });
 });
-
-
-
-

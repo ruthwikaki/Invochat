@@ -27,7 +27,7 @@ import { getProductDemandForecast } from './product-demand-forecast-flow';
 import { getDemandForecast, getAbcAnalysis, getGrossMarginAnalysis, getNetMarginByChannel, getMarginTrends, getSalesVelocity, getPromotionalImpactAnalysis } from './analytics-tools';
 import { logError, getErrorMessage } from '@/lib/error-handler';
 import crypto from 'crypto';
-import type { GenerateOptions, GenerateResponse, MessageData, ToolArgument } from 'genkit';
+import type { GenerateOptions, GenerateResponse, MessageData, ToolArgument, ToolRequestPart } from 'genkit';
 
 // These are the tools that are safe and fully implemented for the AI to use.
 const safeToolsForOrchestrator: ToolArgument[] = [
@@ -170,12 +170,12 @@ export const universalChatFlow = ai.defineFlow(
         });
         
         let finalResponse: UniversalChatOutput;
-        const toolRequest = response.toolRequests?.[0];
+        const toolRequestPart = response.candidates[0].message.content.find(part => !!part.toolRequest) as ToolRequestPart | undefined;
 
-
-        if (toolRequest) {
-            const toolName = toolRequest.name;
-            const toolResponseData = toolRequest.input;
+        if (toolRequestPart) {
+            const toolRequest = toolRequestPart.toolRequest;
+            const toolName = toolRequest?.name || 'unknown_tool';
+            const toolResponseData = toolRequest?.input || {};
 
             logger.info(`[UniversalChat:Flow] AI requested tool: "${toolName}"`);
 
@@ -215,7 +215,7 @@ export const universalChatFlow = ai.defineFlow(
              logger.warn("[UniversalChat:Flow] No tool or text was generated. Answering from general knowledge.");
              finalResponse = {
                 response: "I'm sorry, I was unable to generate a specific response from your business data. Please try rephrasing your question.",
-                data: [],
+                data: null,
                 visualization: { type: 'none', title: '', data: [] },
                 confidence: 0.5,
                 assumptions: ['I was unable to answer this from your business data and answered from general knowledge.'],
@@ -238,7 +238,7 @@ export const universalChatFlow = ai.defineFlow(
         if (errorMessage.includes('503') || errorMessage.includes('unavailable') || errorMessage.includes('timed out')) {
              return {
                 response: `I'm sorry, but the AI service is currently unavailable or took too long to respond. This may be a temporary issue. Please try again in a few moments.`,
-                data: [],
+                data: null,
                 visualization: { type: 'none', title: '', data: [] },
                 confidence: 0.0,
                 assumptions: ['The AI service is unavailable.'],
@@ -248,7 +248,7 @@ export const universalChatFlow = ai.defineFlow(
 
         return {
             response: `I'm sorry, but I encountered an unexpected error while trying to generate a response. The AI service may be temporarily unavailable. Please try again in a few moments.`,
-            data: [],
+            data: null,
             visualization: { type: 'none', title: '', data: [] },
             confidence: 0.0,
             assumptions: ['An unexpected error occurred in the AI processing flow.'],

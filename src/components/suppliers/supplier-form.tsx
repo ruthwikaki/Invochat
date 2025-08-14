@@ -43,29 +43,28 @@ export function SupplierForm({ initialData }: SupplierFormProps) {
 
   const onSubmit = (data: SupplierFormData) => {
     startTransition(async () => {
-      const formData = new FormData();
-      if (csrfToken) {
-          formData.append(CSRF_FORM_NAME, csrfToken);
-      } else {
-          toast({ variant: 'destructive', title: 'Error', description: 'Missing required security token. Please refresh the page.' });
-          return;
-      }
-      
-      formData.append('data', JSON.stringify(data));
-      
-      const action = initialData
-        ? updateSupplier(initialData.id, formData)
-        : createSupplier(formData);
-      
-      const result = await action;
+        if (!csrfToken) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Missing required security token. Please refresh the page.' });
+            return;
+        }
 
-      if (result.success) {
-        toast({ title: `Supplier ${initialData ? 'updated' : 'created'} successfully` });
-        router.push('/suppliers');
-        router.refresh();
-      } else {
-        toast({ variant: 'destructive', title: 'Error', description: result.error });
-      }
+        const formData = new FormData();
+        formData.append(CSRF_FORM_NAME, csrfToken);
+        formData.append('data', JSON.stringify(data));
+        
+        const action = initialData
+            ? updateSupplier(initialData.id, formData)
+            : createSupplier(formData);
+        
+        const result = await action;
+
+        if (result.success) {
+            toast({ title: `Supplier ${initialData ? 'updated' : 'created'} successfully` });
+            router.push('/suppliers');
+            router.refresh();
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
     });
   };
 

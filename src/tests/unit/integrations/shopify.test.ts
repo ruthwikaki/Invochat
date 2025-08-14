@@ -1,5 +1,4 @@
 
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { runShopifyFullSync } from '@/features/integrations/services/platforms/shopify';
 import * as encryption from '@/features/integrations/services/encryption';
@@ -65,7 +64,7 @@ describe('Shopify Integration Service', () => {
     (getServiceRoleClient as any).mockReturnValue(supabaseMock);
     vi.spyOn(encryption, 'getSecret').mockResolvedValue('shpat_test_token');
     vi.spyOn(redis, 'invalidateCompanyCache').mockResolvedValue(undefined);
-    vi.spyOn(database, 'refreshMaterializedViews').mockResolvedValue(undefined);
+    (database.refreshMaterializedViews as any).mockResolvedValue(undefined);
   });
 
   it('should run a full sync successfully', async () => {
@@ -109,7 +108,3 @@ describe('Shopify Integration Service', () => {
     await expect(runShopifyFullSync(mockIntegration)).rejects.toThrow('Shopify API product fetch error (500): Server Error');
   });
 });
-
-
-
-

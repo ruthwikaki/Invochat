@@ -6,10 +6,10 @@ import { useAuth } from "@/context/auth-context";
 import { Skeleton } from "./ui/skeleton";
 import ErrorBoundary from "./error-boundary";
 import { MissingEnvVarsPage } from "./missing-env-vars-page";
-import type { z } from "zod";
+import type { SafeParseReturnType } from "zod";
 
 
-type ValidationResult = z.SafeParseReturnType<any, any>;
+type ValidationResult = SafeParseReturnType<any, any>;
 
 
 interface AppInitializerProps {

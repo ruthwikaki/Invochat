@@ -1,5 +1,4 @@
 
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { runWooCommerceFullSync } from '@/features/integrations/services/platforms/woocommerce';
 import * as encryption from '@/features/integrations/services/encryption';
@@ -69,7 +68,7 @@ describe('WooCommerce Integration Service', () => {
     (getServiceRoleClient as any).mockReturnValue(supabaseMock);
     vi.spyOn(encryption, 'getSecret').mockResolvedValue(JSON.stringify(mockCredentials));
     vi.spyOn(redis, 'invalidateCompanyCache').mockResolvedValue(undefined);
-    vi.spyOn(database, 'refreshMaterializedViews').mockResolvedValue(undefined);
+    (database.refreshMaterializedViews as any).mockResolvedValue(undefined);
   });
 
   it('should run a full sync successfully', async () => {
@@ -83,7 +82,7 @@ describe('WooCommerce Integration Service', () => {
     expect(encryption.getSecret).toHaveBeenCalledWith(mockIntegration.company_id, 'woocommerce');
     expect(fetch).toHaveBeenCalledTimes(3);
 
-    // Verify variant and product upserts
+    // Verify product and variant upserts
     expect(supabaseMock.from).toHaveBeenCalledWith('products');
     expect(supabaseMock.from).toHaveBeenCalledWith('product_variants');
     
@@ -103,5 +102,3 @@ describe('WooCommerce Integration Service', () => {
      await expect(runWooCommerceFullSync(mockIntegration)).rejects.toThrow('WooCommerce credentials are missing.');
   });
 });
-
-

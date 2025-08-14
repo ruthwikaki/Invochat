@@ -18,6 +18,7 @@ vi.mock('@/config/app-config', () => ({
         ai: {
             model: 'googleai/gemini-1.5-flash',
             maxOutputTokens: 2048,
+            timeoutMs: 10000
         },
     },
 }));
@@ -28,7 +29,7 @@ describe('testGenkitConnection', () => {
   });
 
   it('should return success if AI generation works', async () => {
-    (ai.generate as any).mockResolvedValue({ text: 'hello' });
+    (ai.generate as any).mockResolvedValue({ text: () => 'hello' });
     const result = await testGenkitConnection();
     expect(result.success).toBe(true);
     expect(result.isConfigured).toBe(true);

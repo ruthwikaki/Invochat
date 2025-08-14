@@ -68,7 +68,7 @@ export default async function DashboardPage({
             getCompanySettings(),
         ]);
         
-        metrics = (metricsData as DashboardMetrics) || emptyMetrics;
+        metrics = metricsData || emptyMetrics;
         settings = settingsData;
 
         // Briefing depends on metrics, so it's called after.
@@ -115,5 +115,3 @@ export default async function DashboardPage({
         </AppPage>
     );
 }
-
-    

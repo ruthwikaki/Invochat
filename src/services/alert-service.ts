@@ -19,9 +19,7 @@ export async function getAlertsWithStatus(companyId: string): Promise<Alert[]> {
     return [];
   }
   
-  // The data from the RPC call is expected to be JSON, which needs parsing.
-  if (!Array.isArray(data)) return [];
-  return (data || []).map((a: any) => a as Alert);
+  return (data || []) as Alert[];
 }
 
 export async function getAlertSettings(companyId: string): Promise<CompanySettings> {
@@ -49,7 +47,7 @@ export async function updateAlertSettings(companyId: string, settings: Partial<C
   const supabase = getServiceRoleClient();
   const { error } = await supabase
     .from('company_settings')
-    .update({ alert_settings: settings as any }) // Use a cast to handle partial updates
+    .update({ alert_settings: settings.alert_settings }) 
     .eq('company_id', companyId);
   
   if (error) {

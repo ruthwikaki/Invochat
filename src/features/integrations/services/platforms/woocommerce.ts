@@ -8,6 +8,7 @@ import { refreshMaterializedViews } from '@/services/database';
 import { logger } from '@/lib/logger';
 import { getSecret } from '../encryption';
 import { invalidateCompanyCache } from '@/lib/redis';
+import type { Json } from '@/types/database.types';
 
 async function wooCommerceFetch(
     storeUrl: string | null,
@@ -212,7 +213,7 @@ async function syncSales(integration: Integration, credentials: { consumerKey: s
         for (const order of orders) {
              const { error } = await supabase.rpc('record_order_from_platform', {
                 p_company_id: integration.company_id,
-                p_order_payload: order,
+                p_order_payload: order as Json,
                 p_platform: 'woocommerce'
             });
 

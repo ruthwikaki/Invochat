@@ -1,6 +1,6 @@
 
 import { describe, it, expect, vi } from 'vitest';
-import * as database from '@/services/database';
+import { getDashboardMetrics } from '@/services/database';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 
 // Mock the Supabase client
@@ -33,7 +33,7 @@ describe('Database Service - Business Logic', () => {
     const supabaseMock = getServiceRoleClient();
     (supabaseMock.rpc as any).mockResolvedValue({ data: mockDashboardData, error: null });
 
-    const result = await database.getDashboardMetrics('test-company-id', '30d');
+    const result = await getDashboardMetrics('test-company-id', '30d');
 
     expect(supabaseMock.rpc).toHaveBeenCalledWith('get_dashboard_metrics', {
       p_company_id: 'test-company-id',
@@ -49,6 +49,6 @@ describe('Database Service - Business Logic', () => {
     const dbError = new Error('Database connection error');
     (supabaseMock.rpc as any).mockResolvedValue({ data: null, error: dbError });
 
-    await expect(database.getDashboardMetrics('test-company-id', '30d')).rejects.toThrow('Could not retrieve dashboard metrics from the database.');
+    await expect(getDashboardMetrics('test-company-id', '30d')).rejects.toThrow('Could not retrieve dashboard metrics from the database.');
   });
 });

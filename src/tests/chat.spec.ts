@@ -1,5 +1,4 @@
 
-
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import credentials from './test_data/test_credentials.json';
@@ -9,7 +8,7 @@ const testUser = credentials.test_users[0]; // Use the first user for tests
 async function login(page: Page) {
     await page.goto('/login');
     await page.fill('input[name="email"]', testUser.email);
-    await page.fill('input[name="password"]', 'TestPass123!');
+    await page.fill('input[name="password"]', testUser.password);
     await page.click('button[type="submit"]');
     await page.waitForURL('/dashboard', { timeout: 30000 });
     await page.waitForLoadState('networkidle');
@@ -33,7 +32,7 @@ test.describe('AI Chat Interface', () => {
 
         await responsePromise;
 
-        const assistantMessageContainer = page.locator('.flex.flex-col.gap-3').last();
+        const assistantMessageContainer = page.locator('.flex.flex-col.gap-3:has(.bg-card)').last();
         await expect(assistantMessageContainer).toBeVisible({ timeout: 20000 });
         await expect(assistantMessageContainer).not.toContainText('An unexpected error occurred');
     });

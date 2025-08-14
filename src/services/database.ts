@@ -2,13 +2,13 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, PurchaseOrderFormData, ChannelFee, Integration, SalesAnalytics, CustomerAnalytics, AuditLogEntry, FeedbackWithMessages, ReorderSuggestion, PurchaseOrderWithItemsAndSupplier, DashboardMetrics, InventoryAnalytics } from '@/types';
-import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, SupplierPerformanceReportSchema, ReorderSuggestionSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, InventoryAnalyticsSchema, SupplierFormSchema } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, PurchaseOrderFormData, ChannelFee, Integration, SalesAnalytics, CustomerAnalytics, ReorderSuggestion, PurchaseOrderWithItems, PurchaseOrderWithItemsAndSupplier, DashboardMetrics, InventoryAnalytics } from '@/types';
+import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DeadStockItemSchema, SupplierPerformanceReportSchema, ReorderSuggestionSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, InventoryAnalyticsSchema, SupplierFormSchema } from '@/types';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import type { Json } from '@/types/database.types';
-import { logger } from '@/lib/logger';
 import { isRedisEnabled, redisClient, invalidateCompanyCache } from '@/lib/redis';
+import { logger } from '@/lib/logger';
 
 // --- Input Validation Schemas ---
 const DatabaseQueryParamsSchema = z.object({
@@ -28,7 +28,7 @@ const DatabaseQueryParamsSchema = z.object({
  * @param userId The ID of the user to check.
  * @param requiredRole The minimum role required ('Admin' | 'Owner').
  */
-export async function checkUserPermission(userId: string, requiredRole: 'Admin' | 'Owner' | 'Member'): Promise<void> {
+export async function checkUserPermission(userId: string, requiredRole: 'Owner' | 'Admin' | 'Member'): Promise<void> {
     if (!userId || !z.string().uuid().safeParse(userId).success) {
         throw new Error('Invalid user ID provided');
     }
@@ -335,7 +335,7 @@ export async function getSalesAnalyticsFromDB(companyId: string): Promise<SalesA
         logError(error, { context: 'getSalesAnalyticsFromDB failed' });
         throw error;
     }
-    return SalesAnalyticsSchema.parse(data);
+    return SalesAnalyticsSchema.parse(data[0] || {});
 }
 
 export async function getCustomerAnalyticsFromDB(companyId: string): Promise<CustomerAnalytics> {
@@ -581,7 +581,7 @@ export async function createPurchaseOrderInDb(companyId: string, userId: string,
         p_status: poData.status,
         p_notes: poData.notes,
         p_expected_arrival: poData.expected_arrival_date?.toISOString(),
-        p_line_items: poData.line_items,
+        p_line_items: poData.line_items as unknown as Json,
     }).select('id').single();
 
     if (error) {
@@ -605,7 +605,7 @@ export async function updatePurchaseOrderInDb(poId: string, companyId: string, u
         p_status: poData.status,
         p_notes: poData.notes,
         p_expected_arrival: poData.expected_arrival_date?.toISOString(),
-        p_line_items: poData.line_items,
+        p_line_items: poData.line_items as unknown as Json,
     });
 
     if (error) {
@@ -630,7 +630,7 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
         throw error;
     }
     
-    return (data || []) as PurchaseOrderWithItemsAndSupplier[];
+    return (data as any[]) || [];
 }
 
 export async function getPurchaseOrderByIdFromDB(id: string, companyId: string) {
@@ -886,37 +886,4 @@ export async function refreshMaterializedViews(companyId: string) {
     } catch (e) {
         logError(e, { context: 'refreshMaterializedViews unexpected error', companyId });
     }
-}
-
-export async function getAuditLogFromDB(companyId: string, params: { query?: string; offset: number, limit: number }) { 
-    const supabase = getServiceRoleClient();
-    let query = supabase.from('audit_log_view').select('*', { count: 'exact' }).eq('company_id', companyId);
-    
-    if(params.query) {
-        query = query.or(`action.ilike.%${params.query}%,user_email.ilike.%${params.query}%`);
-    }
-
-    const { data, error, count } = await query
-        .order('created_at', { ascending: false })
-        .range(params.offset, params.offset + params.limit -1);
-    
-    if(error) throw error;
-
-    return { items: AuditLogEntrySchema.array().parse(data || []), totalCount: count || 0 };
-}
-export async function getFeedbackFromDB(companyId: string, params: { query?: string; offset: number, limit: number }) { 
-    const supabase = getServiceRoleClient();
-    let query = supabase.from('feedback_view').select('*', { count: 'exact' }).eq('company_id', companyId);
-
-    if (params.query) {
-        query = query.or(`user_email.ilike.%${params.query}%,user_message_content.ilike.%${params.query}%`);
-    }
-
-    const { data, error, count } = await query
-        .order('created_at', { ascending: false })
-        .range(params.offset, params.offset + params.limit -1);
-        
-    if(error) throw error;
-    
-    return { items: FeedbackSchema.array().parse(data || []), totalCount: count || 0 };
 }

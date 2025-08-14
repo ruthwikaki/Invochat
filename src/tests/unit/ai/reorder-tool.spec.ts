@@ -1,10 +1,9 @@
 
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
 import * as database from '@/services/database';
 import * as genkit from '@/ai/genkit';
-import type { ReorderSuggestion } from '@/schemas/reorder';
+import type { ReorderSuggestion } from '@/types';
 
 // Mock database and AI calls
 vi.mock('@/services/database');
@@ -65,7 +64,7 @@ describe('Reorder Tool', () => {
     // Verify results
     expect(result).toHaveLength(1);
     expect(result[0].sku).toBe('SKU001');
-    expect(result[0].suggested_reorder_quantity).toBe(85); // 50 * 1.3, then rounded
+    expect(result[0].suggested_reorder_quantity).toBe(85); // 65 * 1.3, then rounded
     expect(result[0].adjustment_reason).toContain('seasonal demand');
     expect(database.getReorderSuggestionsFromDB).toHaveBeenCalledWith(input.companyId);
     expect(reorderRefinementPrompt).toHaveBeenCalled();
