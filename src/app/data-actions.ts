@@ -47,16 +47,17 @@ import {
     logUserFeedbackInDb as logUserFeedbackInDbService,
     getHistoricalSalesForSingleSkuFromDB,
     getDashboardMetrics,
-    getInventoryAnalyticsFromDB
+    getInventoryAnalyticsFromDB,
+    getHistoricalSalesForSkus
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
-import type { DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, ReorderSuggestion, Message, Conversation, SalesAnalytics, CustomerAnalytics, SupplierFormData } from '@/types';
+import type { DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, Message, Conversation, SalesAnalytics, CustomerAnalytics, SupplierFormData } from '@/types';
+import { SupplierFormSchema } from '@/types';
 import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
-import { getServiceRoleClient } from '@/lib/supabase/admin';
 
 export async function getProducts() {
   const { companyId } = await getAuthContext();
@@ -535,8 +536,7 @@ export async function getInventoryTurnoverReportData() {
 
 export async function getConversations(): Promise<Conversation[]> {
     const { companyId } = await getAuthContext();
-    const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.from('conversations').select('*').eq('company_id', companyId);
+    const { data, error } = await getServiceRoleClient().from('conversations').select('*').eq('company_id', companyId);
     if(error) {
         logError(error, {context: 'getConversations failed'});
         return [];
@@ -546,8 +546,7 @@ export async function getConversations(): Promise<Conversation[]> {
 
 export async function getMessages(conversationId: string): Promise<Message[]> {
     const { companyId } = await getAuthContext();
-    const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.from('messages').select('*').eq('company_id', companyId).eq('conversation_id', conversationId);
+    const { data, error } = await getServiceRoleClient().from('messages').select('*').eq('company_id', companyId).eq('conversation_id', conversationId);
     
     if (error) {
         logError(error, {context: 'getMessages failed'});
@@ -610,7 +609,7 @@ export async function handleUserMessage(params: { content: string, conversationI
         is_error: aiResponse.is_error,
     };
 
-    const { error: insertError } = await supabase.from('messages').insert(newMessage);
+    const { error: insertError } = await getServiceRoleClient().from('messages').insert([newMessage as any]);
     if(insertError) {
         logError(insertError, {context: 'Failed to save assistant message'});
     }
@@ -715,3 +714,15 @@ export async function getFeedbackData(params: {
         return { items: [], totalCount: 0 };
     }
 }
+
+export async function getDashboardData(period: string) {
+    try {
+        const { companyId } = await getAuthContext();
+        return await getDashboardMetrics(companyId, period);
+    } catch(e) {
+        logError(e, { context: 'getDashboardData failed' });
+        return null;
+    }
+}
+
+    

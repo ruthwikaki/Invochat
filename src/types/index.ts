@@ -1,5 +1,4 @@
 
-
 import { z } from 'zod';
 import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema, HealthCheckResultSchema } from './ai-schemas';
 import {
@@ -8,6 +7,7 @@ import {
 } from '@/schemas/reorder';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { SupplierFormSchema as SupplierFormSchemaImport, SupplierSchema as SupplierSchemaImport } from '@/schemas/suppliers';
+import type { Json } from './database.types';
 
 export const UserSchema = z.custom<SupabaseUser>();
 export type User = z.infer<typeof UserSchema>;
@@ -281,7 +281,7 @@ export const MessageSchema = z.object({
   id: z.string(),
   conversation_id: z.string().uuid(),
   company_id: z.string().uuid(),
-  role: z.enum(['user', 'assistant']),
+  role: z.enum(['user', 'assistant', 'system', 'tool']),
   content: z.string(),
   visualization: z.object({
     type: z.enum(['table', 'chart', 'alert', 'none']),
@@ -553,10 +553,6 @@ export const ImportJobSchema = z.object({
 });
 export type ImportJob = z.infer<typeof ImportJobSchema>;
 
-export type Json =
-  | string
-  | number
-  | boolean
-  | null
-  | { [key: string]: Json | undefined }
-  | Json[];
+export type { Json };
+
+    

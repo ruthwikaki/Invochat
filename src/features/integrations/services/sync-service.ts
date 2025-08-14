@@ -79,3 +79,5 @@ export async function runSync(integrationId: string, companyId: string) {
         throw new Error(`Sync failed after multiple attempts. Please check the logs.`);
     }
 }
+
+    

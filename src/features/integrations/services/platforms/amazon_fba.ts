@@ -76,12 +76,10 @@ async function syncSales(integration: Integration, credentials: { sellerId: stri
     let totalRecordsSynced = 0;
 
     for (const order of (simulatedOrders as Record<string, unknown>[])) {
-        const p_order_payload = {
-            ...order
-        } as unknown as Json;
+        const p_order_payload = order as unknown as Json;
         const { error } = await supabase.rpc('record_order_from_platform', {
             p_company_id: integration.company_id,
-            p_order_payload: p_order_payload,
+            p_order_payload,
             p_platform: 'amazon_fba'
         });
 
@@ -125,3 +123,5 @@ export async function runAmazonFbaFullSync(integration: Integration) {
         throw e;
     }
 }
+
+    

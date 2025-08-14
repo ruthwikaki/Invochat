@@ -2,14 +2,13 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, Order, DashboardMetrics, PurchaseOrderFormData, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, AuditLogEntry, FeedbackWithMessages, ReorderSuggestion, PurchaseOrderWithItemsAndSupplier } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, PurchaseOrderFormData, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, AuditLogEntry, FeedbackWithMessages, ReorderSuggestion, PurchaseOrderWithItemsAndSupplier, DashboardMetrics } from '@/types';
 import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, SupplierPerformanceReportSchema, ReorderSuggestionSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, InventoryAnalyticsSchema, SupplierFormSchema, DashboardMetricsSchema } from '@/types';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import type { Json } from '@/types/database.types';
 import { logger } from '@/lib/logger';
-import { invalidateCompanyCache } from '@/lib/redis';
-
+import { isRedisEnabled, redisClient, invalidateCompanyCache } from '@/lib/redis';
 
 // --- Input Validation Schemas ---
 const DatabaseQueryParamsSchema = z.object({
@@ -574,9 +573,6 @@ export async function createPurchaseOrderInDb(companyId: string, userId: string,
     if (!z.string().uuid().safeParse(companyId).success || !z.string().uuid().safeParse(userId).success) {
         throw new Error('Invalid ID format');
     }
-    if (poData.line_items.some(item => item.cost < 0 || item.cost > 10000000)) {
-        throw new Error(`Invalid item cost. Must be between $0 and $100,000.`);
-    }
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('create_full_purchase_order', {
         p_company_id: companyId,
@@ -600,9 +596,6 @@ export async function updatePurchaseOrderInDb(poId: string, companyId: string, u
     if (!z.string().uuid().safeParse(poId).success || !z.string().uuid().safeParse(companyId).success) {
         throw new Error('Invalid ID format');
     }
-    if (poData.line_items.some(item => item.cost < 0 || item.cost > 10000000)) {
-        throw new Error(`Invalid item cost. Must be between $0 and $100,000.`);
-    }
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('update_full_purchase_order', {
         p_po_id: poId,
@@ -611,7 +604,7 @@ export async function updatePurchaseOrderInDb(poId: string, companyId: string, u
         p_supplier_id: poData.supplier_id,
         p_status: poData.status,
         p_notes: poData.notes,
-        p_expected_arrival: poData.expected_arrival_date?.toISOString() || new Date().toISOString(),
+        p_expected_arrival: poData.expected_arrival_date?.toISOString(),
         p_line_items: poData.line_items,
     });
 
@@ -824,24 +817,7 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
         
         if (data == null) {
             logger.warn('[RPC Error] get_dashboard_metrics returned null. This can happen with no data.');
-            // Return default values instead of throwing
-            return {
-                total_revenue: 0,
-                total_orders: 0,
-                new_customers: 0,
-                dead_stock_value: 0,
-                revenue_change: 0,
-                orders_change: 0,
-                customers_change: 0,
-                top_products: [],
-                sales_over_time: [],
-                inventory_summary: {
-                    total_value: 0,
-                    in_stock_value: 0,
-                    low_stock_value: 0,
-                    dead_stock_value: 0,
-                },
-            };
+            return DashboardMetricsSchema.parse({}); // Return default values
         }
         
         return DashboardMetricsSchema.parse(data);
@@ -851,7 +827,6 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
     }
 }
 
-// Add the missing InventoryAnalytics function (CRITICAL FIX)
 export async function getInventoryAnalyticsFromDB(companyId: string): Promise<InventoryAnalytics> {
     if (!z.string().uuid().safeParse(companyId).success) {
         throw new Error('Invalid company ID format');
@@ -879,11 +854,55 @@ export async function getInventoryAnalyticsFromDB(companyId: string): Promise<In
 }
 
 export async function refreshMaterializedViews(companyId: string) {
-    // This function can be expanded to refresh specific views, but for now
-    // it's a placeholder to indicate where such logic would go.
+    if (!z.string().uuid().safeParse(companyId).success) {
+        logger.warn(`Invalid companyId passed to refreshMaterializedViews: ${companyId}`);
+        return;
+    }
     logger.info(`Materialized view refresh triggered for company ${companyId}`);
+    try {
+        const supabase = getServiceRoleClient();
+        const { error } = await supabase.rpc('refresh_all_matviews', { p_company_id: companyId });
+        if(error) {
+            logError(error, { context: 'refresh_all_matviews RPC failed', companyId });
+        } else {
+            logger.info(`Successfully refreshed materialized views for company ${companyId}`);
+        }
+    } catch (e) {
+        logError(e, { context: 'refreshMaterializedViews unexpected error', companyId });
+    }
 }
 
-// Placeholder for missing exports to satisfy tsc
-export async function getAuditLogFromDB() { return { items: [], totalCount: 0 }; }
-export async function getFeedbackFromDB() { return { items: [], totalCount: 0 }; }
+export async function getAuditLogFromDB(companyId: string, params: { query?: string; offset: number, limit: number }) { 
+    const supabase = getServiceRoleClient();
+    let query = supabase.from('audit_log_view').select('*', { count: 'exact' }).eq('company_id', companyId);
+    
+    if(params.query) {
+        query = query.or(`action.ilike.%${params.query}%,user_email.ilike.%${params.query}%`);
+    }
+
+    const { data, error, count } = await query
+        .order('created_at', { ascending: false })
+        .range(params.offset, params.offset + params.limit -1);
+    
+    if(error) throw error;
+
+    return { items: AuditLogEntrySchema.array().parse(data || []), totalCount: count || 0 };
+}
+export async function getFeedbackFromDB(companyId: string, params: { query?: string; offset: number, limit: number }) { 
+    const supabase = getServiceRoleClient();
+    let query = supabase.from('feedback_view').select('*', { count: 'exact' }).eq('company_id', companyId);
+
+    if (params.query) {
+        query = query.or(`user_email.ilike.%${params.query}%,user_message_content.ilike.%${params.query}%`);
+    }
+
+    const { data, error, count } = await query
+        .order('created_at', { ascending: false })
+        .range(params.offset, params.offset + params.limit -1);
+        
+    if(error) throw error;
+    
+    return { items: FeedbackSchema.array().parse(data || []), totalCount: count || 0 };
+}
+
+    
