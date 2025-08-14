@@ -1,11 +1,7 @@
 
 'use client';
 
-<<<<<<< HEAD
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-=======
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
->>>>>>> 6168ea0773980b7de6d6d789337dd24b18126f79
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -115,8 +111,3 @@ export function AuditLogClientPage({ initialData, totalCount, itemsPerPage }: Au
         </Card>
     );
 }
-<<<<<<< HEAD
-=======
-
-    
->>>>>>> 6168ea0773980b7de6d6d789337dd24b18126f79

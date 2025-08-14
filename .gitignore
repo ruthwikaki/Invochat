@@ -8,12 +8,13 @@
 # testing
 /coverage
 
-# next.js
-/.next/
-/out/
+# sentry
+.sentryclirc
 
 # production
 /build
+/.next/
+/out/
 
 # misc
 .DS_Store
@@ -23,13 +24,13 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.pnpm-debug.log*
 
 # local env files
-.env
-.env.*
-src/.env
-src/.env.*
-*.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
 # vercel
 .vercel
@@ -38,6 +39,9 @@ src/.env.*
 *.tsbuildinfo
 next-env.d.ts
 
-# test data
-/tests/test_data/
-/src/tests/test_data/
+# Sensitive environment files
+.env
+.env.*
+src/.env
+src/.env.*
+tests/test_data/test_credentials.json

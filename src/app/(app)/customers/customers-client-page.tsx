@@ -190,16 +190,12 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
             <AnalyticsCard data-testid="total-customers-card" title="Total Customers" value={analyticsData.total_customers.toLocaleString()} icon={Users} />
             <AnalyticsCard title="Avg. Lifetime Value" value={formatCentsAsCurrency(analyticsData.customer_lifetime_value)} icon={DollarSign} />
             <AnalyticsCard title="New Customers (30d)" value={analyticsData.new_customers_30d.toLocaleString()} icon={UserPlus} />
-<<<<<<< HEAD
             <AnalyticsCard title="Repeat Customer Rate" value={`${(analyticsData.returning_customers * 100).toFixed(1)}%`} icon={Repeat} />
-=======
-            <AnalyticsCard title="Repeat Customer Rate" value={`${(analyticsData.returning_customers).toFixed(1)}%`} icon={Repeat} />
->>>>>>> 6168ea0773980b7de6d6d789337dd24b18126f79
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <TopCustomerList title="Top Customers by Spend" data={analyticsData.top_customers} icon={Trophy} valueLabel="spend" />
-            <TopCustomerList title="Top Customers by Sales" data={analyticsData.top_customers} icon={ShoppingBag} valueLabel="orders" />
+            <TopCustomerList title="Top Customers by Spend" data={analyticsData.top_customers.map(c => ({ name: c.customer_name, value: c.total_spent}))} icon={Trophy} valueLabel="spend" />
+            <TopCustomerList title="Top Customers by Sales" data={analyticsData.top_customers.map(c => ({ name: c.customer_name, value: c.total_orders}))} icon={ShoppingBag} valueLabel="orders" />
         </div>
 
         <Card>
@@ -295,5 +291,3 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
     </div>
   );
 }
-
-    

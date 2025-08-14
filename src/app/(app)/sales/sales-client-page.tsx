@@ -1,8 +1,4 @@
 
-<<<<<<< HEAD
-
-=======
->>>>>>> 6168ea0773980b7de6d6d789337dd24b18126f79
 'use client';
 
 import { Input } from '@/components/ui/input';
@@ -188,8 +184,3 @@ export function SalesClientPage({ initialSales, totalCount, itemsPerPage, analyt
     </div>
   );
 }
-<<<<<<< HEAD
-=======
-
-    
->>>>>>> 6168ea0773980b7de6d6d789337dd24b18126f79

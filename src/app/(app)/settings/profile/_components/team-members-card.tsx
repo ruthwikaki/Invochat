@@ -29,10 +29,6 @@ import { Loader2 } from 'lucide-react';
 import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf-client';
 import type { TeamMember } from '@/types';
 import { useAuth } from '@/context/auth-context';
-<<<<<<< HEAD
-import { AlertSettings } from '@/components/settings/alert-settings';
-=======
->>>>>>> 6168ea0773980b7de6d6d789337dd24b18126f79
 
 const inviteSchema = z.object({
   email: z.string().email('Please enter a valid email address.'),
@@ -202,8 +198,3 @@ export function TeamMembersCard() {
         </Card>
     );
 }
-
-<<<<<<< HEAD
-=======
-    
->>>>>>> 6168ea0773980b7de6d6d789337dd24b18126f79

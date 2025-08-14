@@ -1,20 +1,18 @@
 
 import { AppPage, AppPageHeader } from "@/components/ui/page";
-import { getAdvancedAbcReport, getAdvancedSalesVelocityReport, getAdvancedGrossMarginReport } from "@/app/data-actions";
+import { getAbcAnalysisFromDB, getSalesVelocityFromDB, getGrossMarginAnalysisFromDB } from "@/services/database";
 import { AdvancedReportsClientPage, type SalesVelocityItem, type GrossMarginItem, type AbcAnalysisItem } from "./advanced-reports-client-page";
-<<<<<<< HEAD
-import type { Json } from "@/types/database.types";
-=======
->>>>>>> 6168ea0773980b7de6d6d789337dd24b18126f79
+import { getAuthContext } from "@/lib/auth-helpers";
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdvancedReportsPage() {
+    const { companyId } = await getAuthContext();
 
     const [abcAnalysisData, salesVelocityData, grossMarginData] = await Promise.all([
-        getAdvancedAbcReport(),
-        getAdvancedSalesVelocityReport(),
-        getAdvancedGrossMarginReport(),
+        getAbcAnalysisFromDB(companyId),
+        getSalesVelocityFromDB(companyId, 90, 20),
+        getGrossMarginAnalysisFromDB(companyId),
     ]);
 
     return (
@@ -33,8 +31,3 @@ export default async function AdvancedReportsPage() {
         </AppPage>
     );
 }
-<<<<<<< HEAD
-=======
-
-    
->>>>>>> 6168ea0773980b7de6d6d789337dd24b18126f79

@@ -27,14 +27,10 @@ import { getProductDemandForecast } from './product-demand-forecast-flow';
 import { getDemandForecast, getAbcAnalysis, getGrossMarginAnalysis, getNetMarginByChannel, getMarginTrends, getSalesVelocity, getPromotionalImpactAnalysis } from './analytics-tools';
 import { logError, getErrorMessage } from '@/lib/error-handler';
 import crypto from 'crypto';
-<<<<<<< HEAD
-import type { GenerateOptions, GenerateResponse, MessageData } from 'genkit';
-=======
-import type { GenerateOptions, GenerateResponse, MessageData, ToolRequestPart } from 'genkit';
->>>>>>> 6168ea0773980b7de6d6d789337dd24b18126f79
+import type { GenerateOptions, GenerateResponse, MessageData, ToolDefinition } from 'genkit';
 
 // These are the tools that are safe and fully implemented for the AI to use.
-const safeToolsForOrchestrator = [
+const safeToolsForOrchestrator: ToolDefinition[] = [
     getReorderSuggestions,
     getDeadStockReport,
     getInventoryTurnoverReport,
@@ -108,7 +104,7 @@ async function generateWithRetry(request: GenerateOptions): Promise<GenerateResp
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
             const modelToUse = attempt === 1 ? config.ai.model : 'googleai/gemini-1.5-flash';
-            const finalRequest: GenerateOptions = { ...request, model: modelToUse as any };
+            const finalRequest: GenerateOptions = { ...request, model: modelToUse };
             return await ai.generate(finalRequest);
         } catch (e: unknown) {
             lastError = e instanceof Error ? e : new Error(getErrorMessage(e));
@@ -165,15 +161,9 @@ export const universalChatFlow = ai.defineFlow(
         }));
         
         const response = await generateWithRetry({
-<<<<<<< HEAD
-            tools: safeToolsForOrchestrator as any,
-            messages: genkitHistory,
             model: config.ai.model as any,
-=======
-            model: config.ai.model as any,
-            tools: safeToolsForOrchestrator as any,
+            tools: safeToolsForOrchestrator,
             messages: genkitHistory,
->>>>>>> 6168ea0773980b7de6d6d789337dd24b18126f79
             config: {
                 temperature: 0.2, // Slightly more creative for better synthesis
                 maxOutputTokens: config.ai.maxOutputTokens,

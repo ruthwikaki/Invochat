@@ -53,12 +53,12 @@ import {
     refreshMaterializedViews
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
-import type { DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, Customer, SalesAnalytics, InventoryAnalytics, Integration } from '@/types';
+import type { DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, ReorderSuggestion } from '@/types';
 import { SupplierFormSchema } from '@/schemas/suppliers';
 import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
-import type { Message, Conversation, ReorderSuggestion } from '@/types';
+import type { Message, Conversation } from '@/types';
 import { z } from 'zod';
 import { isRedisEnabled, redisClient, invalidateCompanyCache } from '@/lib/redis';
 import { config } from '@/config/app-config';
@@ -297,7 +297,7 @@ export async function exportSales(params: { query: string }) {
     }
 }
 
-export async function getSalesAnalytics(): Promise<SalesAnalytics> {
+export async function getSalesAnalytics() {
     try {
         const { companyId } = await getAuthContext();
         const cacheKey = `cache:sales-analytics:${companyId}`;
@@ -351,7 +351,7 @@ export async function exportCustomers(params: { query: string }) {
     }
 }
 
-export async function getCustomerAnalytics(): Promise<CustomerAnalytics> {
+export async function getCustomerAnalytics() {
     try {
         const { companyId } = await getAuthContext();
         const cacheKey = `cache:customer-analytics:${companyId}`;
@@ -378,7 +378,7 @@ export async function getCustomerAnalytics(): Promise<CustomerAnalytics> {
         
         return analyticsData;
     } catch (e) {
-        logError(e, {context: 'getCustomerAnalytics action failed, returning default'});
+        logError(e, { context: 'getCustomerAnalytics action failed, returning default'});
         return { total_customers: 0, new_customers_last_30_days: 0, repeat_customer_rate: 0, average_lifetime_value: 0, top_customers_by_spend: [], top_customers_by_sales: [] };
     }
 }
@@ -432,7 +432,10 @@ export async function getPurchaseOrderById(id: string) {
         total_cost: po.total_cost,
         expected_arrival_date: po.expected_arrival_date,
         line_items: po.line_items?.map((item: any) => ({
+            id: item.id,
             variant_id: item.variant_id,
+            product_name: item.product_name,
+            sku: item.sku,
             quantity: item.quantity,
             cost: item.cost,
         })) || []
@@ -722,7 +725,7 @@ export async function handleUserMessage(params: { content: string, conversationI
   }
 }
 
-export async function logUserFeedbackInDb(params: { subjectId: string, subjectType: string, feedback: 'helpful' | 'unhelpful' }) {
+export async function logUserFeedback(params: { subjectId: string, subjectType: string, feedback: 'helpful' | 'unhelpful' }) {
     try {
         const { companyId, userId } = await getAuthContext();
         await logUserFeedbackInDbService(userId, companyId, params.subjectId, params.subjectType, params.feedback);

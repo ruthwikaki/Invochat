@@ -10,8 +10,3 @@ export async function refreshData() {
     await refreshMaterializedViews(companyId);
     await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock', 'inventory', 'suppliers']);
 }
-<<<<<<< HEAD
-=======
-
-    
->>>>>>> 6168ea0773980b7de6d6d789337dd24b18126f79

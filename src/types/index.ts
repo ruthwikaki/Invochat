@@ -1,19 +1,11 @@
 
-<<<<<<< HEAD
-
-=======
->>>>>>> 6168ea0773980b7de6d6d789337dd24b18126f79
 import { z } from 'zod';
 import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema, HealthCheckResultSchema } from './ai-schemas';
 import {
   EnhancedReorderSuggestionSchema,
   type ReorderSuggestionBase,
 } from '@/schemas/reorder';
-<<<<<<< HEAD
-import { SupplierSchema, SupplierFormSchema } from '@/schemas/suppliers';
-=======
 import { SupplierSchema, SupplierFormSchema as SupplierFormSchemaImport } from '@/schemas/suppliers';
->>>>>>> 6168ea0773980b7de6d6d789337dd24b18126f79
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 export const UserSchema = z.custom<SupabaseUser>();
@@ -409,41 +401,25 @@ export const InventoryAnalyticsSchema = z.object({
 }).passthrough();
 export type InventoryAnalytics = z.infer<typeof InventoryAnalyticsSchema>;
 
-<<<<<<< HEAD
 export const CustomerAnalyticsSchema = z.object({
     total_customers: z.number().int(),
-    new_customers_last_30_days: z.number().int(),
-    repeat_customer_rate: z.number(),
-    average_lifetime_value: z.number().int(),
-    top_customers_by_spend: z.array(z.object({
-        name: z.string().nullable(),
-        value: z.number().int()
+    new_customers_30d: z.number().int(),
+    returning_customers: z.number(),
+    average_order_value: z.number().int(),
+    customer_lifetime_value: z.number().int(),
+    top_customers: z.array(z.object({
+        customer_id: z.string().uuid(),
+        customer_name: z.string().nullable(),
+        total_orders: z.number().int(),
+        total_spent: z.number().int(),
     })),
-    top_customers_by_sales: z.array(z.object({
-        name: z.string().nullable(),
-        value: z.number().int()
+    customer_segments: z.array(z.object({
+        segment: z.string(),
+        count: z.number().int(),
+        revenue: z.number().int(),
     })),
 }).passthrough();
 export type CustomerAnalytics = z.infer<typeof CustomerAnalyticsSchema>;
-=======
-export interface CustomerAnalytics {
-    total_customers: number;
-    new_customers_30d: number;
-    returning_customers: number;
-    average_order_value: number;
-    customer_lifetime_value: number;
-    top_customers: Array<{
-        customer_id: string;
-        name: string | null;
-        value: number;
-    }>;
-    customer_segments: Array<{
-        segment: string;
-        count: number;
-        revenue: number;
-    }>;
-}
->>>>>>> 6168ea0773980b7de6d6d789337dd24b18126f79
 
 
 export { HealthCheckResultSchema };
@@ -568,10 +544,5 @@ export const ImportJobSchema = z.object({
   failed_rows: z.number().nullable(),
 });
 export type ImportJob = z.infer<typeof ImportJobSchema>;
-<<<<<<< HEAD
-=======
 
 export const SupplierFormSchema = SupplierFormSchemaImport;
-
-    
->>>>>>> 6168ea0773980b7de6d6d789337dd24b18126f79

@@ -1,11 +1,12 @@
 
 import { AppPage, AppPageHeader } from "@/components/ui/page";
 import { PurchaseOrdersClientPage } from "./purchase-orders-client-page";
-import { getPurchaseOrdersFromDB, getSuppliersDataFromDB } from "@/services/database";
+import { getPurchaseOrdersFromDB } from "@/services/database";
 import { Button } from "@/components/ui/button";
 import Link from 'next/link';
 import { getAuthContext } from "@/lib/auth-helpers";
 import type { PurchaseOrderWithItemsAndSupplier, Supplier } from "@/types";
+import { getSuppliersDataFromDB } from "@/app/data-actions";
 
 export const dynamic = 'force-dynamic';
 
@@ -35,5 +36,3 @@ export default async function PurchaseOrdersPage() {
         </AppPage>
     )
 }
-
-    
