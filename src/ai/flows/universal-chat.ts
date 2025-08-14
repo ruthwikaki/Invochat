@@ -28,7 +28,6 @@ import { getDemandForecast, getAbcAnalysis, getGrossMarginAnalysis, getNetMargin
 import { logError, getErrorMessage } from '@/lib/error-handler';
 import crypto from 'crypto';
 import type { GenerateOptions, GenerateResponse, MessageData, ToolRequestPart, ToolArgument } from 'genkit';
-import type { ZodTypeAny } from 'zod';
 
 // These are the tools that are safe and fully implemented for the AI to use.
 const safeToolsForOrchestrator: ToolArgument[] = [
@@ -171,13 +170,12 @@ export const universalChatFlow = ai.defineFlow(
         });
         
         let finalResponse: UniversalChatOutput;
-        const toolRequestPart = response.candidates[0].message.content.find(part => !!part.toolRequest) as ToolRequestPart | undefined;
+        const toolRequestPart = response.toolRequests?.[0];
 
 
         if (toolRequestPart) {
-            const toolRequest = toolRequestPart.toolRequest;
-            const toolName = toolRequest.name;
-            const toolResponseData = toolRequest.input;
+            const toolName = toolRequestPart.name;
+            const toolResponseData = toolRequestPart.input;
 
             logger.info(`[UniversalChat:Flow] AI requested tool: "${toolName}"`);
 

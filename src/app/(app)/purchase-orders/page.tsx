@@ -1,4 +1,5 @@
 
+
 import { AppPage, AppPageHeader } from "@/components/ui/page";
 import { PurchaseOrdersClientPage } from "./purchase-orders-client-page";
 import { getPurchaseOrders, getSuppliersData } from "@/app/data-actions";
@@ -26,7 +27,7 @@ export default async function PurchaseOrdersPage() {
             </AppPageHeader>
             <div className="mt-6">
                 <PurchaseOrdersClientPage 
-                    initialPurchaseOrders={purchaseOrders}
+                    initialPurchaseOrders={purchaseOrders as PurchaseOrderWithItemsAndSupplier[]}
                     suppliers={suppliers}
                 />
             </div>

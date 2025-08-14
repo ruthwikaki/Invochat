@@ -1,4 +1,5 @@
 
+
 import { getDashboardData, getMorningBriefing, getCompanySettings } from '@/app/data-actions';
 import { DashboardClientPage } from './dashboard-client-page';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
@@ -68,7 +69,7 @@ export default async function DashboardPage({
             getCompanySettings(),
         ]);
         
-        metrics = metricsData || emptyMetrics;
+        metrics = (metricsData as DashboardMetrics) || emptyMetrics;
         settings = settingsData;
 
         // Briefing depends on metrics, so it's called after.
