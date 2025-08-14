@@ -23,7 +23,7 @@ export default async function AdvancedReportsPage() {
             <div className="mt-6">
                 <AdvancedReportsClientPage
                     abcAnalysisData={(abcAnalysisData as AbcAnalysisItem[]) || []}
-                    salesVelocityData={(salesVelocityData as { fast_sellers: SalesVelocityItem[], slow_sellers: SalesVelocityItem[] }) || { fast_sellers: [], slow_sellers: [] }}
+                    salesVelocityData={(salesVelocityData as any) || { fast_sellers: [], slow_sellers: [] }}
                     grossMarginData={(grossMarginData as any) || { products: [], summary: { total_revenue: 0, total_cogs: 0, total_gross_margin: 0, average_gross_margin: 0 } }}
                 />
             </div>

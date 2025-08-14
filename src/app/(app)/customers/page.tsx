@@ -33,7 +33,7 @@ export default async function CustomersPage({
         />
         <div className="mt-6">
             <CustomersClientPage
-                initialCustomers={customersData.items}
+                initialCustomers={customersData.items as Customer[]}
                 totalCount={customersData.totalCount}
                 itemsPerPage={ITEMS_PER_PAGE}
                 analyticsData={analyticsData as CustomerAnalyticsType}
@@ -43,5 +43,3 @@ export default async function CustomersPage({
     </AppPage>
   );
 }
-
-    

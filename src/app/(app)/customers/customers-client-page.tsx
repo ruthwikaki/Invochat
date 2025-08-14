@@ -188,14 +188,14 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
     <div className="space-y-6">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <AnalyticsCard data-testid="total-customers-card" title="Total Customers" value={analyticsData.total_customers.toLocaleString()} icon={Users} />
-            <AnalyticsCard title="Avg. Lifetime Value" value={formatCentsAsCurrency(analyticsData.average_lifetime_value)} icon={DollarSign} />
-            <AnalyticsCard title="New Customers (30d)" value={analyticsData.new_customers_last_30_days.toLocaleString()} icon={UserPlus} />
-            <AnalyticsCard title="Repeat Customer Rate" value={`${(analyticsData.repeat_customer_rate * 100).toFixed(1)}%`} icon={Repeat} />
+            <AnalyticsCard title="Avg. Lifetime Value" value={formatCentsAsCurrency(analyticsData.customer_lifetime_value)} icon={DollarSign} />
+            <AnalyticsCard title="New Customers (30d)" value={analyticsData.new_customers_30d.toLocaleString()} icon={UserPlus} />
+            <AnalyticsCard title="Repeat Customer Rate" value={`${(analyticsData.returning_customers * 100).toFixed(1)}%`} icon={Repeat} />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <TopCustomerList title="Top Customers by Spend" data={analyticsData.top_customers_by_spend} icon={Trophy} valueLabel="spend" />
-            <TopCustomerList title="Top Customers by Sales" data={analyticsData.top_customers_by_sales} icon={ShoppingBag} valueLabel="orders" />
+            <TopCustomerList title="Top Customers by Spend" data={analyticsData.top_customers} icon={Trophy} valueLabel="spend" />
+            <TopCustomerList title="Top Customers by Sales" data={analyticsData.top_customers} icon={ShoppingBag} valueLabel="orders" />
         </div>
 
         <Card>

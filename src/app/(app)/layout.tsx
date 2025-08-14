@@ -1,11 +1,11 @@
 
-import { ReactNode } from 'react';
 import { Sidebar, SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/nav/sidebar';
 import { QueryClientProvider } from '@/context/query-client-provider';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { redirect } from 'next/navigation';
 import { logError } from '@/lib/error-handler';
+import React from 'react';
 
 export default async function AppLayout({
   children,
