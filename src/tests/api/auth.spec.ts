@@ -1,7 +1,5 @@
 
 import { test, expect } from '@playwright/test';
-import { getAuthedRequest } from './api-helpers';
-import { createServerClient } from '@/lib/supabase/admin';
 
 test.describe('Authentication API', () => {
 

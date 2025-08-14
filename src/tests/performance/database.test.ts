@@ -1,11 +1,14 @@
-import { describe, test, expect } from 'vitest';
-import { getDashboardMetrics } from '@/services/database';
+
+import { describe, test, expect, vi } from 'vitest';
+import * as database from '@/services/database';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 
 // This is a placeholder for a database performance test.
 // A true performance test would involve seeding the database with a large
 // amount of data (e.g., 10,000 products, 100,000 orders) and then measuring
 // the execution time of complex queries.
+vi.mock('@/lib/supabase/admin');
+
 
 describe('Database Performance Tests', () => {
 
@@ -15,7 +18,7 @@ describe('Database Performance Tests', () => {
 
     // 2. Measure execution time
     const startTime = performance.now();
-    await getDashboardMetrics('large-seeded-company-id', '90d');
+    await database.getDashboardMetrics('large-seeded-company-id', '90d');
     const endTime = performance.now();
     
     const duration = endTime - startTime;

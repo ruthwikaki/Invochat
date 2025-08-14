@@ -20,6 +20,7 @@ test.beforeAll(async () => {
     });
     if (error) throw new Error(`Failed to create test user: ${error.message}`);
     testUser = user;
+    if (!user) throw new Error('Test user not created');
 
     // Create a second company that this user should NOT have access to
      const { data: company } = await supabase.from('companies').insert({ name: 'Other Test Company', owner_id: user.id}).select('id').single();
@@ -80,5 +81,3 @@ test.afterAll(async () => {
         }
     }
 });
-
-    

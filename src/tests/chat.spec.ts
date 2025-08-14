@@ -3,7 +3,6 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import credentials from './test_data/test_credentials.json';
-import * as crypto from 'crypto';
 
 const testUser = credentials.test_users[0]; // Use the first user for tests
 
@@ -69,7 +68,7 @@ test.describe('AI Chat Interface', () => {
         await expect(page.getByTestId('reorder-list').or(page.getByText('No reorder suggestions'))).toBeVisible({ timeout: 20000 });
     });
 
-    test('should handle AI service error gracefully', async ({ page, context }) => {
+    test('should handle AI service error gracefully', async ({ page }) => {
         await page.route('**/api/chat/message', async route => {
             await route.fulfill({
                 status: 500,

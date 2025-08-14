@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
 import * as genkit from '@/ai/genkit';
 import * as redis from '@/lib/redis';
-import type { MessageData, GenerateResponse, GenerateRequest, ToolRequestPart } from 'genkit';
+import type { MessageData, GenerateResponse, ToolRequestPart } from 'genkit';
 
 vi.mock('@/ai/genkit');
 vi.mock('@/lib/redis');
@@ -38,7 +38,7 @@ const mockToolResponse: GenerateResponse = {
     text: ''
 };
 
-const mockTextResponse = {
+const mockTextResponse: GenerateResponse = {
     candidates: [{
         index: 0,
         finishReason: 'stop',

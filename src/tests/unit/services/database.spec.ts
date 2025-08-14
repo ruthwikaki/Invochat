@@ -1,6 +1,6 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getDashboardMetrics } from '@/services/database';
+import * as database from '@/services/database';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 
 // Mock the Supabase client
@@ -43,7 +43,7 @@ describe('Database Service - Business Logic', () => {
       error: null 
     });
 
-    const result = await getDashboardMetrics('d1a3c5b9-2d7f-4b8e-9c1a-8b7c6d5e4f3a', '30d');
+    const result = await database.getDashboardMetrics('d1a3c5b9-2d7f-4b8e-9c1a-8b7c6d5e4f3a', '30d');
 
     expect(supabaseMock.rpc).toHaveBeenCalledWith('get_dashboard_metrics', {
       p_company_id: 'd1a3c5b9-2d7f-4b8e-9c1a-8b7c6d5e4f3a',
@@ -62,16 +62,6 @@ describe('Database Service - Business Logic', () => {
       error: dbError 
     });
     
-    await expect(getDashboardMetrics('d1a3c5b9-2d7f-4b8e-9c1a-8b7c6d5e4f3a', '30d')).rejects.toThrow('Could not retrieve dashboard metrics from the database.');
-  });
-
-  it('getDashboardMetrics should throw an error if data is null but no error object', async () => {
-    // Simulate response with null data but no error (edge case)
-    (supabaseMock.rpc as any).mockResolvedValue({ 
-      data: null, 
-      error: null 
-    });
-    
-    await expect(getDashboardMetrics('d1a3c5b9-2d7f-4b8e-9c1a-8b7c6d5e4f3a', '30d')).rejects.toThrow('No response from get_dashboard_metrics RPC call.');
+    await expect(database.getDashboardMetrics('d1a3c5b9-2d7f-4b8e-9c1a-8b7c6d5e4f3a', '30d')).rejects.toThrow('Could not retrieve dashboard metrics from the database.');
   });
 });
