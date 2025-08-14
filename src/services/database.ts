@@ -2,15 +2,11 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithItems, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier } from '@/types';
-import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, SupplierPerformanceReportSchema, ReorderSuggestionSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema } from '@/types';
-import { isRedisEnabled, redisClient, invalidateCompanyCache } from '@/lib/redis';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, ReorderSuggestion, PurchaseOrderWithItemsAndSupplier } from '@/types';
+import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, SupplierPerformanceReportSchema, ReorderSuggestionSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DashboardMetricsSchema } from '@/types';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import type { Json } from '@/types/database.types';
-import { config } from '@/config/app-config';
-import { logger } from '@/lib/logger';
-import { revalidatePath } from 'next/cache';
 
 // --- Input Validation Schemas ---
 const DatabaseQueryParamsSchema = z.object({
@@ -109,7 +105,6 @@ export async function updateSettingsInDb(companyId: string, settings: Partial<Co
             return { success: false, error: error.message };
         }
         
-        await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
         return { success: true };
     } catch (error) {
         logError(error, { context: 'updateSettingsInDb unexpected error', companyId });
@@ -238,7 +233,7 @@ export async function createSupplierInDb(companyId: string, formData: SupplierFo
     if (!z.string().uuid().safeParse(companyId).success) {
         throw new Error('Invalid company ID format');
     }
-    const validatedData = SupplierFormSchema.parse(formData);
+    const validatedData = SupplierSchema.parse(formData);
     try {
         const supabase = getServiceRoleClient();
         const { error } = await supabase.from('suppliers').insert({ ...validatedData, company_id: companyId });
@@ -246,8 +241,6 @@ export async function createSupplierInDb(companyId: string, formData: SupplierFo
             logError(error, { context: 'createSupplierInDb failed', companyId });
             throw new Error('Failed to create supplier');
         }
-        await invalidateCompanyCache(companyId, ['suppliers']);
-        await refreshMaterializedViews(companyId);
     } catch (error) {
         logError(error, { context: 'createSupplierInDb unexpected error', companyId });
         throw new Error(`Could not create supplier: ${getErrorMessage(error)}`);
@@ -258,7 +251,7 @@ export async function updateSupplierInDb(id: string, companyId: string, formData
     if (!z.string().uuid().safeParse(id).success || !z.string().uuid().safeParse(companyId).success) {
         throw new Error('Invalid ID format');
     }
-    const validatedData = SupplierFormSchema.parse(formData);
+    const validatedData = SupplierSchema.parse(formData);
     const supabase = getServiceRoleClient();
     const { error } = await supabase.from('suppliers').update(validatedData).eq('id', id).eq('company_id', companyId);
     if(error) {
@@ -589,7 +582,7 @@ export async function createPurchaseOrderInDb(companyId: string, userId: string,
         p_user_id: userId,
         p_supplier_id: poData.supplier_id,
         p_status: poData.status,
-        p_notes: poData.notes || '',
+        p_notes: poData.notes,
         p_expected_arrival: poData.expected_arrival_date?.toISOString() || null,
         p_line_items: poData.line_items as any,
     }).select('id').single();
@@ -613,7 +606,7 @@ export async function updatePurchaseOrderInDb(poId: string, companyId: string, u
         p_user_id: userId,
         p_supplier_id: poData.supplier_id,
         p_status: poData.status,
-        p_notes: poData.notes || '',
+        p_notes: poData.notes,
         p_expected_arrival: poData.expected_arrival_date?.toISOString() || null,
         p_line_items: poData.line_items as any,
     });
@@ -854,12 +847,9 @@ export async function createPurchaseOrdersFromSuggestionsInDb(companyId: string,
 
 export async function refreshMaterializedViews(companyId: string): Promise<void> {
     const supabase = getServiceRoleClient();
-    // This function now refreshes all materialized views relevant to a company.
-    // It's a fire-and-forget operation from the client's perspective.
     const { error } = await supabase.rpc('refresh_all_matviews', { p_company_id: companyId });
 
     if (error) {
         logError(error, { context: 'refreshMaterializedViews failed', companyId });
-        // We don't throw here to avoid breaking UI flows, but we log the error.
     }
 }

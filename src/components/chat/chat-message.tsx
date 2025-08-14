@@ -21,7 +21,7 @@ import { SupplierPerformanceTable } from '@/components/ai-response/supplier-perf
 import React, { useState } from 'react';
 import { Button } from '../ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { logUserFeedbackInDb } from '@/app/data-actions';
+import { logUserFeedback } from '@/app/data-actions';
 
 // New futuristic loading indicator
 function LoadingIndicator() {
@@ -100,7 +100,7 @@ function FeedbackActions({ messageId }: { messageId: string }) {
 
     const handleFeedback = async (feedbackType: 'helpful' | 'unhelpful') => {
         setFeedbackSent(true);
-        const result = await logUserFeedbackInDb({
+        const result = await logUserFeedback({
             subjectId: messageId,
             subjectType: 'message',
             feedback: feedbackType

@@ -38,7 +38,7 @@ async function processCompanyAlerts(companyId: string, companyName: string) {
     try {
       const settings = await getAlertSettings(companyId);
       
-      if (!settings?.alert_settings?.morning_briefing_enabled || !settings?.alert_settings?.email_notifications) {
+      if (!settings?.morning_briefing_enabled || !settings?.email_notifications) {
         logger.info(`Skipping email briefing for company ${companyName} as it is disabled.`);
         return;
       }
@@ -79,10 +79,10 @@ async function sendDailyDigest(
     metrics: DashboardMetrics
 ) {
     const lowStockAlerts = alerts.filter(a => a.type === 'low_stock');
-    const deadStockItems = metrics.top_selling_products
-        .filter(p => p.total_revenue === 0)
+    const deadStockItems = (metrics.top_products || [])
+        .filter((p: any) => p.total_revenue === 0)
         .slice(0, 5)
-        .map(p => ({ product_name: p.product_name, total_value: 0 }));
+        .map((p: any) => ({ product_name: p.product_name, total_value: 0 }));
 
     await sendInventoryDigestEmail(email, {
       summary: briefing.summary,

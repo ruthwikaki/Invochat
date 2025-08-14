@@ -27,10 +27,10 @@ import { getProductDemandForecast } from './product-demand-forecast-flow';
 import { getDemandForecast, getAbcAnalysis, getGrossMarginAnalysis, getNetMarginByChannel, getMarginTrends, getSalesVelocity, getPromotionalImpactAnalysis } from './analytics-tools';
 import { logError, getErrorMessage } from '@/lib/error-handler';
 import crypto from 'crypto';
-import type { GenerateOptions, GenerateResponse, MessageData, ToolDefinition } from 'genkit';
+import type { GenerateOptions, GenerateResponse, MessageData, Tool } from 'genkit';
 
 // These are the tools that are safe and fully implemented for the AI to use.
-const safeToolsForOrchestrator: ToolDefinition[] = [
+const safeToolsForOrchestrator: Tool[] = [
     getReorderSuggestions,
     getDeadStockReport,
     getInventoryTurnoverReport,
@@ -104,8 +104,8 @@ async function generateWithRetry(request: GenerateOptions): Promise<GenerateResp
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
             const modelToUse = attempt === 1 ? config.ai.model : 'googleai/gemini-1.5-flash';
-            const finalRequest: GenerateOptions = { ...request, model: modelToUse };
-            return await ai.generate(finalRequest);
+            const finalRequest: GenerateOptions = { ...request };
+            return await ai.generate({model: modelToUse as any, ...finalRequest});
         } catch (e: unknown) {
             lastError = e instanceof Error ? e : new Error(getErrorMessage(e));
             logger.warn(`[AI Generate] Attempt ${attempt} failed: ${lastError.message}`);
@@ -161,7 +161,6 @@ export const universalChatFlow = ai.defineFlow(
         }));
         
         const response = await generateWithRetry({
-            model: config.ai.model as any,
             tools: safeToolsForOrchestrator,
             messages: genkitHistory,
             config: {

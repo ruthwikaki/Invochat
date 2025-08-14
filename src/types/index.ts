@@ -1,11 +1,10 @@
-
 import { z } from 'zod';
 import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema, HealthCheckResultSchema } from './ai-schemas';
 import {
   EnhancedReorderSuggestionSchema,
   type ReorderSuggestionBase,
 } from '@/schemas/reorder';
-import { SupplierSchema, SupplierFormSchema as SupplierFormSchemaImport } from '@/schemas/suppliers';
+import { SupplierSchema as SupplierSchemaImport, SupplierFormSchema as SupplierFormSchemaImport } from '@/schemas/suppliers';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 export const UserSchema = z.custom<SupabaseUser>();
@@ -309,7 +308,7 @@ export const ReorderSuggestionSchema = z.object({
 export type ReorderSuggestion = z.infer<typeof ReorderSuggestionSchema>;
 
 export { EnhancedReorderSuggestionSchema };
-export type { ReorderSuggestionBase, Supplier };
+export type { ReorderSuggestionBase };
 
 export const InventoryAgingReportItemSchema = z.object({
   sku: z.string(),
@@ -546,3 +545,5 @@ export const ImportJobSchema = z.object({
 export type ImportJob = z.infer<typeof ImportJobSchema>;
 
 export const SupplierFormSchema = SupplierFormSchemaImport;
+export type SupplierFormData = z.infer<typeof SupplierFormSchemaImport>;
+export const SupplierSchema = SupplierSchemaImport;

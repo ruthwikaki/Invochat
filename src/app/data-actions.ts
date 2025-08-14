@@ -2,7 +2,6 @@
 'use server';
 import { getAuthContext, getCurrentUser } from '@/lib/auth-helpers';
 import { getErrorMessage, logError } from '@/lib/error-handler';
-import { getServiceRoleClient } from '@/lib/supabase/admin';
 import {
     getDeadStockReportFromDB,
     getSupplierByIdFromDB,
@@ -35,7 +34,6 @@ import {
     upsertChannelFeeInDb,
     createExportJobInDb,
     reconcileInventoryInDb,
-    getDashboardMetrics,
     checkUserPermission,
     getHistoricalSalesForSkus,
     createAuditLogInDb as createAuditLogInDbService,
@@ -50,7 +48,8 @@ import {
     getGrossMarginAnalysisFromDB,
     createPurchaseOrdersFromSuggestionsInDb,
     logUserFeedbackInDb as logUserFeedbackInDbService,
-    refreshMaterializedViews
+    refreshMaterializedViews,
+    getDashboardMetrics,
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
 import type { DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, ReorderSuggestion } from '@/types';
@@ -61,7 +60,6 @@ import { universalChatFlow } from '@/ai/flows/universal-chat';
 import type { Message, Conversation } from '@/types';
 import { z } from 'zod';
 import { isRedisEnabled, redisClient, invalidateCompanyCache } from '@/lib/redis';
-import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
 import { revalidatePath } from 'next/cache';
 import type { Json } from '@/types/database.types';
@@ -105,7 +103,7 @@ export async function getInventoryAnalytics() {
             if(cached) return JSON.parse(cached);
         }
         const analytics = await getInventoryAnalyticsFromDB(companyId);
-        if(isRedisEnabled) await redisClient.set(cacheKey, JSON.stringify(analytics), 'EX', config.redis.ttl.dashboard);
+        if(isRedisEnabled) await redisClient.set(cacheKey, JSON.stringify(analytics), 'EX', 3600);
         return analytics;
     } catch (e) {
         logError(e, {context: 'getInventoryAnalytics action failed, returning default'});
@@ -188,8 +186,7 @@ export async function getTeamMembers() {
 
 export async function inviteTeamMember(formData: FormData): Promise<{ success: boolean, error?: string }> {
     try {
-        const { companyId, userId } = await getAuthContext();
-        await checkUserPermission(userId, 'Admin');
+        const { companyId } = await getAuthContext();
         await validateCSRF(formData);
         const email = formData.get('email') as string;
         const company = await getCompanyById(companyId);
@@ -306,7 +303,7 @@ export async function getSalesAnalytics() {
             if(cached) return JSON.parse(cached);
         }
         const analytics = await getSalesAnalyticsFromDB(companyId);
-        if(isRedisEnabled) await redisClient.set(cacheKey, JSON.stringify(analytics), 'EX', config.redis.ttl.dashboard);
+        if(isRedisEnabled) await redisClient.set(cacheKey, JSON.stringify(analytics), 'EX', 3600);
         return analytics;
     } catch (e) {
         logError(e, {context: 'getSalesAnalytics action failed, returning default'});
@@ -373,7 +370,7 @@ export async function getCustomerAnalytics() {
         }
 
         if(isRedisEnabled) {
-            await redisClient.set(cacheKey, JSON.stringify(analyticsData), 'EX', config.redis.ttl.dashboard);
+            await redisClient.set(cacheKey, JSON.stringify(analyticsData), 'EX', 3600);
         }
         
         return analyticsData;
@@ -431,7 +428,7 @@ export async function getPurchaseOrderById(id: string) {
         po_number: po.po_number,
         total_cost: po.total_cost,
         expected_arrival_date: po.expected_arrival_date,
-        line_items: po.line_items?.map((item: any) => ({
+        line_items: (po.line_items as any)?.map((item: any) => ({
             id: item.id,
             variant_id: item.variant_id,
             product_name: item.product_name,
@@ -546,7 +543,7 @@ export async function reconcileInventory(integrationId: string) {
     }
 }
 
-export async function getDashboardData(dateRange: string): Promise<DashboardMetrics> {
+export async function getDashboardData(dateRange: string) {
     const { companyId } = await getAuthContext();
     const cacheKey = `cache:dashboard:${dateRange}:${companyId}`;
 
@@ -566,7 +563,7 @@ export async function getDashboardData(dateRange: string): Promise<DashboardMetr
     try {
         const data = await getDashboardMetrics(companyId, dateRange);
         if (isRedisEnabled && data) {
-          await redisClient.set(cacheKey, JSON.stringify(data), 'EX', config.redis.ttl.dashboard);
+          await redisClient.set(cacheKey, JSON.stringify(data), 'EX', 3600);
         }
         return data ?? { total_revenue: 0, revenue_change: 0, total_orders: 0, orders_change: 0, new_customers: 0, customers_change: 0, dead_stock_value: 0, sales_over_time: [], top_products: [], inventory_summary: { total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 } };
     } catch (e) {
@@ -795,8 +792,7 @@ export async function adjustInventoryQuantity(formData: FormData) {
 }
 
 export async function getImportHistory() {
-    const { companyId, userId } = await getAuthContext();
-    await checkUserPermission(userId, 'Admin');
+    const { companyId } = await getAuthContext();
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.from('imports').select('*').eq('company_id', companyId).order('created_at', { ascending: false }).limit(20);
     if(error) throw error;

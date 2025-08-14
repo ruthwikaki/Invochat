@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 import { useTransition, useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { type SupplierFormData, SupplierFormSchema } from '@/types';
+import { type Supplier, SupplierFormSchema } from '@/types';
 import { createSupplier, updateSupplier } from '@/app/data-actions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
@@ -14,7 +14,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2 } from 'lucide-react';
-import type { Supplier } from '@/types';
 import { CSRF_FORM_NAME, generateAndSetCsrfToken } from '@/lib/csrf-client';
 
 interface SupplierFormProps {
@@ -31,7 +30,7 @@ export function SupplierForm({ initialData }: SupplierFormProps) {
     generateAndSetCsrfToken(setCsrfToken);
   }, []);
 
-  const form = useForm<SupplierFormData>({
+  const form = useForm<z.infer<typeof SupplierFormSchema>>({
     resolver: zodResolver(SupplierFormSchema),
     defaultValues: initialData || {
       name: '',
@@ -42,7 +41,7 @@ export function SupplierForm({ initialData }: SupplierFormProps) {
     },
   });
 
-  const onSubmit = (data: SupplierFormData) => {
+  const onSubmit = (data: z.infer<typeof SupplierFormSchema>) => {
     startTransition(async () => {
       const formData = new FormData();
       if (csrfToken) {
@@ -115,5 +114,3 @@ export function SupplierForm({ initialData }: SupplierFormProps) {
     </form>
   );
 }
-
-    

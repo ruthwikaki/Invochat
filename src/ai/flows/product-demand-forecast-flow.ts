@@ -91,7 +91,7 @@ export const productDemandForecastFlow = ai.defineFlow(
       }
 
       const firstDay = new Date(salesData[0].sale_date);
-      const dataForRegression = salesData.map((d: any) => ({
+      const dataForRegression = salesData.map((d: { sale_date: string; total_quantity: number }) => ({
         x: differenceInDays(new Date(d.sale_date), firstDay),
         y: d.total_quantity,
       }));

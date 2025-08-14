@@ -1,7 +1,7 @@
 
 import { AppPage, AppPageHeader } from "@/components/ui/page";
 import { getAbcAnalysisFromDB, getSalesVelocityFromDB, getGrossMarginAnalysisFromDB } from "@/services/database";
-import { AdvancedReportsClientPage, type SalesVelocityItem, type GrossMarginItem, type AbcAnalysisItem } from "./advanced-reports-client-page";
+import { AdvancedReportsClientPage, type AbcAnalysisItem } from "./advanced-reports-client-page";
 import { getAuthContext } from "@/lib/auth-helpers";
 
 export const dynamic = 'force-dynamic';
