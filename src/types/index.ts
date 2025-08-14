@@ -208,7 +208,6 @@ export const PurchaseOrderWithItemsAndSupplierSchema = z.object({
     po_number: z.string(),
     total_cost: z.number().int(),
     expected_arrival_date: z.string().datetime({ offset: true }).nullable(),
-    idempotency_key: z.string().uuid().nullable(),
     created_at: z.string().datetime({ offset: true }),
     updated_at: z.string().datetime({ offset: true }).nullable(),
     supplier_name: z.string().nullable(),

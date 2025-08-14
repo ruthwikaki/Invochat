@@ -2,12 +2,11 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, PurchaseOrderFormData, ChannelFee, Integration, SalesAnalytics, CustomerAnalytics, ReorderSuggestion, PurchaseOrderWithItems, PurchaseOrderWithItemsAndSupplier, DashboardMetrics, InventoryAnalytics } from '@/types';
-import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DeadStockItemSchema, SupplierPerformanceReportSchema, ReorderSuggestionSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, InventoryAnalyticsSchema, SupplierFormSchema } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, PurchaseOrderFormData, ChannelFee, Integration, SalesAnalytics, CustomerAnalytics, ReorderSuggestion, PurchaseOrderWithItems, PurchaseOrderWithItemsAndSupplier, DashboardMetrics, InventoryAnalytics, AuditLogEntry, FeedbackWithMessages } from '@/types';
+import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, SupplierPerformanceReportSchema, ReorderSuggestionSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, InventoryAnalyticsSchema, SupplierFormSchema, DashboardMetricsSchema } from '@/types';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import type { Json } from '@/types/database.types';
-import { isRedisEnabled, redisClient, invalidateCompanyCache } from '@/lib/redis';
 import { logger } from '@/lib/logger';
 
 // --- Input Validation Schemas ---
@@ -108,7 +107,6 @@ export async function updateSettingsInDb(companyId: string, settings: Partial<Co
             return { success: false, error: "Unable to save settings. Please try again." };
         }
         
-        await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
         return { success: true };
     } catch (error) {
         logError(error, { context: 'updateSettingsInDb unexpected error', companyId });
@@ -630,7 +628,7 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
         throw error;
     }
     
-    return (data as any[]) || [];
+    return data || [];
 }
 
 export async function getPurchaseOrderByIdFromDB(id: string, companyId: string) {
@@ -886,4 +884,42 @@ export async function refreshMaterializedViews(companyId: string) {
     } catch (e) {
         logError(e, { context: 'refreshMaterializedViews unexpected error', companyId });
     }
+}
+
+export async function getAuditLogFromDB(companyId: string, params: { query?: string; offset: number, limit: number }): Promise<{ items: AuditLogEntry[], totalCount: number }> {
+    const validatedParams = DatabaseQueryParamsSchema.parse(params);
+    const supabase = getServiceRoleClient();
+    
+    let query = supabase.from('audit_log_view').select('*', {count: 'exact'}).eq('company_id', companyId);
+    
+    if(validatedParams.query) {
+        query = query.or(`action.ilike.%${validatedParams.query}%,user_email.ilike.%${validatedParams.query}%`);
+    }
+    
+    const limit = Math.min(validatedParams.limit || 25, 100);
+    const { data, error, count } = await query
+        .order('created_at', { ascending: false })
+        .range(validatedParams.offset || 0, (validatedParams.offset || 0) + limit - 1);
+    
+    if(error) throw error;
+    return {items: AuditLogEntrySchema.array().parse(data || []), totalCount: count || 0};
+}
+
+export async function getFeedbackFromDB(companyId: string, params: { query?: string; offset: number, limit: number }): Promise<{ items: FeedbackWithMessages[], totalCount: number }> {
+    const validatedParams = DatabaseQueryParamsSchema.parse(params);
+    const supabase = getServiceRoleClient();
+    
+    let query = supabase.from('feedback_view').select('*', {count: 'exact'}).eq('company_id', companyId);
+    
+    if(validatedParams.query) {
+        query = query.or(`user_email.ilike.%${validatedParams.query}%,user_message_content.ilike.%${validatedParams.query}%`);
+    }
+    
+    const limit = Math.min(validatedParams.limit || 25, 100);
+    const { data, error, count } = await query
+        .order('created_at', { ascending: false })
+        .range(validatedParams.offset || 0, (validatedParams.offset || 0) + limit - 1);
+    
+    if(error) throw error;
+    return {items: FeedbackSchema.array().parse(data || []), totalCount: count || 0};
 }

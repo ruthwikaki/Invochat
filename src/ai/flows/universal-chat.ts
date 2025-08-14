@@ -170,12 +170,11 @@ export const universalChatFlow = ai.defineFlow(
         });
         
         let finalResponse: UniversalChatOutput;
-        const toolRequestPart = response.candidates[0].message.content.find(part => !!part.toolRequest) as ToolRequestPart | undefined;
+        const toolRequestPart = response.toolRequests?.[0];
 
         if (toolRequestPart) {
-            const toolRequest = toolRequestPart.toolRequest;
-            const toolName = toolRequest?.name || 'unknown_tool';
-            const toolResponseData = toolRequest?.input || {};
+            const toolName = toolRequestPart.name || 'unknown_tool';
+            const toolResponseData = toolRequestPart.input || {};
 
             logger.info(`[UniversalChat:Flow] AI requested tool: "${toolName}"`);
 

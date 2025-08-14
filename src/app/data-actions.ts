@@ -45,13 +45,14 @@ import {
     getGrossMarginAnalysisFromDB,
     createPurchaseOrdersFromSuggestionsInDb,
     logUserFeedbackInDb as logUserFeedbackInDbService,
-    getHistoricalSalesForSingleSkuFromDB,
+    getHistoricalSalesForSkus,
     getDashboardMetrics,
     getInventoryAnalyticsFromDB,
-    getHistoricalSalesForSkus
+    refreshMaterializedViews,
+    getHistoricalSalesForSingleSkuFromDB,
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
-import type { DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, Message, Conversation, SalesAnalytics, CustomerAnalytics, SupplierFormData } from '@/types';
+import type { DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, Message, Conversation, SalesAnalytics, CustomerAnalytics, SupplierFormData, ReorderSuggestion } from '@/types';
 import { SupplierFormSchema } from '@/types';
 import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
@@ -426,6 +427,7 @@ export async function createPurchaseOrder(formData: FormData) {
         const data: PurchaseOrderFormData = JSON.parse(formData.get('data') as string);
         const newPoId = await createPurchaseOrderInDb(companyId, userId, data);
         await createAuditLogInDbService(companyId, userId, 'purchase_order_created', { poId: newPoId });
+        revalidatePath('/purchase-orders');
         return { success: true, newPoId };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
@@ -441,6 +443,7 @@ export async function updatePurchaseOrder(formData: FormData) {
         const data: PurchaseOrderFormData = JSON.parse(formData.get('data') as string);
         await updatePurchaseOrderInDb(id, companyId, userId, data);
         await createAuditLogInDbService(companyId, userId, 'purchase_order_updated', { poId: id });
+        revalidatePath('/purchase-orders');
         return { success: true, updatedPoId: id };
     } catch(e) {
         return { success: false, error: getErrorMessage(e) };
@@ -455,6 +458,7 @@ export async function deletePurchaseOrder(formData: FormData) {
         const id = formData.get('id') as string;
         await deletePurchaseOrderFromDb(id, companyId);
         await createAuditLogInDbService(companyId, userId, 'purchase_order_deleted', { poId: id });
+        revalidatePath('/purchase-orders');
         return { success: true };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
@@ -517,6 +521,7 @@ export async function getMorningBriefing(metrics: DashboardMetrics, companyName?
 export async function getSupplierPerformanceReportData() {
     try {
         const { companyId } = await getAuthContext();
+        await checkUserPermission(companyId, 'Member');
         return await getSupplierPerformanceFromDB(companyId);
     } catch(e) {
         logError(e, { context: 'getSupplierPerformanceReportData failed, returning empty array'});
@@ -527,6 +532,7 @@ export async function getSupplierPerformanceReportData() {
 export async function getInventoryTurnoverReportData() {
     try {
         const { companyId } = await getAuthContext();
+        await checkUserPermission(companyId, 'Member');
         return await getInventoryTurnoverFromDB(companyId, 90);
     } catch(e) {
         logError(e, { context: 'getInventoryTurnoverReportData failed, returning null'});
@@ -536,7 +542,8 @@ export async function getInventoryTurnoverReportData() {
 
 export async function getConversations(): Promise<Conversation[]> {
     const { companyId } = await getAuthContext();
-    const { data, error } = await getServiceRoleClient().from('conversations').select('*').eq('company_id', companyId);
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.from('conversations').select('*').eq('company_id', companyId);
     if(error) {
         logError(error, {context: 'getConversations failed'});
         return [];
@@ -546,7 +553,8 @@ export async function getConversations(): Promise<Conversation[]> {
 
 export async function getMessages(conversationId: string): Promise<Message[]> {
     const { companyId } = await getAuthContext();
-    const { data, error } = await getServiceRoleClient().from('messages').select('*').eq('company_id', companyId).eq('conversation_id', conversationId);
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.from('messages').select('*').eq('company_id', companyId).eq('conversation_id', conversationId);
     
     if (error) {
         logError(error, {context: 'getMessages failed'});
@@ -564,6 +572,7 @@ const chatInputSchema = z.object({
 export async function handleUserMessage(params: { content: string, conversationId: string | null }): Promise<{ newMessage?: Message, conversationId?: string, error?: string }> {
   try {
     const { companyId, userId } = await getAuthContext();
+    await checkUserPermission(userId, 'Member');
     const validatedInput = chatInputSchema.parse(params);
     let { content, conversationId } = validatedInput;
 
@@ -626,6 +635,7 @@ export async function handleUserMessage(params: { content: string, conversationI
 export async function logUserFeedback(params: { subjectId: string, subjectType: string, feedback: 'helpful' | 'unhelpful' }) {
     try {
         const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Member');
         await logUserFeedbackInDbService(userId, companyId, params.subjectId, params.subjectType, params.feedback);
         return { success: true };
     } catch (e) {
@@ -633,19 +643,21 @@ export async function logUserFeedback(params: { subjectId: string, subjectType: 
     }
 }
 
-export async function getDeadStockReport() {
-    try {
-        const { companyId } = await getAuthContext();
-        return await getDeadStockReportFromDB(companyId);
-    } catch(e) {
-        logError(e, { context: 'getDeadStockReport failed, returning default'});
-        return { deadStockItems: [], totalValue: 0, totalUnits: 0 };
-    }
+export async function getDeadStockPageData() {
+    const { companyId } = await getAuthContext();
+    await checkUserPermission(companyId, 'Member');
+    const settings = await getSettings(companyId);
+    const deadStockData = await getDeadStockReportFromDB(companyId);
+    return {
+        ...deadStockData,
+        deadStockDays: settings.dead_stock_days
+    };
 }
 
 export async function getAdvancedAbcReport() {
     try {
         const { companyId } = await getAuthContext();
+        await checkUserPermission(companyId, 'Member');
         return await getAbcAnalysisFromDB(companyId);
     } catch(e) {
         logError(e, { context: 'getAdvancedAbcReport failed, returning null'});
@@ -656,6 +668,7 @@ export async function getAdvancedAbcReport() {
 export async function getAdvancedSalesVelocityReport() {
     try {
         const { companyId } = await getAuthContext();
+        await checkUserPermission(companyId, 'Member');
         return await getSalesVelocityFromDB(companyId, 90, 20);
     } catch(e) {
         logError(e, { context: 'getAdvancedSalesVelocityReport failed, returning null'});
@@ -666,6 +679,7 @@ export async function getAdvancedSalesVelocityReport() {
 export async function getAdvancedGrossMarginReport() {
     try {
         const { companyId } = await getAuthContext();
+        await checkUserPermission(companyId, 'Member');
         return await getGrossMarginAnalysisFromDB(companyId);
     } catch(e) {
         logError(e, { context: 'getAdvancedGrossMarginReport failed, returning null'});
@@ -676,6 +690,7 @@ export async function getAdvancedGrossMarginReport() {
 export async function getImportHistory() {
     const supabase = getServiceRoleClient();
     const { companyId } = await getAuthContext();
+    await checkUserPermission(companyId, 'Member');
     const { data, error } = await supabase.from('imports').select('*').eq('company_id', companyId).order('created_at', { ascending: false }).limit(20);
     if(error) throw error;
     return data;
@@ -718,9 +733,15 @@ export async function getFeedbackData(params: {
 export async function getDashboardData(period: string) {
     try {
         const { companyId } = await getAuthContext();
+        await checkUserPermission(companyId, 'Member');
         return await getDashboardMetrics(companyId, period);
     } catch(e) {
         logError(e, { context: 'getDashboardData failed' });
         return null;
     }
+}
+
+export async function refreshData() {
+    const { companyId } = await getAuthContext();
+    await refreshMaterializedViews(companyId);
 }
