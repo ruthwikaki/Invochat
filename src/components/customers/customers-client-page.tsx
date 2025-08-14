@@ -50,7 +50,7 @@ const AnalyticsCard = ({ title, value, icon: Icon, "data-testid": dataTestId }: 
     </Card>
 );
 
-const TopCustomerList = ({ title, data, icon: Icon, valueLabel }: { title: string, data: { name: string | null, value: number }[], icon: React.ElementType, valueLabel: string }) => (
+const TopCustomerList = ({ title, data, icon: Icon, valueLabel }: { title: string, data: { name: string | null; value: number; }[], icon: React.ElementType, valueLabel: string }) => (
     <Card className="flex-1">
         <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -199,7 +199,7 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <TopCustomerList title="Top Customers by Spend" data={topCustomersBySpendData} icon={Trophy} valueLabel="spend" />
-            <TopCustomerList title="Top Customers by Sales" data={topCustomersByOrdersData} icon={ShoppingBag} valueLabel="orders" />
+            <TopCustomerList title="Top Customers by Orders" data={topCustomersByOrdersData} icon={ShoppingBag} valueLabel="orders" />
         </div>
 
         <Card>

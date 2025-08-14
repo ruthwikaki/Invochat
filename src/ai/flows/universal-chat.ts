@@ -31,7 +31,7 @@ import type { GenerateOptions, GenerateResponse, MessageData, Tool, ToolArgument
 import type { ZodTypeAny } from 'zod';
 
 // These are the tools that are safe and fully implemented for the AI to use.
-const safeToolsForOrchestrator: Tool[] = [
+const safeToolsForOrchestrator = [
     getReorderSuggestions,
     getDeadStockReport,
     getInventoryTurnoverReport,
@@ -162,7 +162,7 @@ export const universalChatFlow = ai.defineFlow(
         }));
         
         const response = await generateWithRetry({
-            tools: safeToolsForOrchestrator as ToolArgument<ZodTypeAny, ZodTypeAny>[],
+            tools: safeToolsForOrchestrator as ToolArgument[],
             messages: genkitHistory,
             config: {
                 temperature: 0.2, // Slightly more creative for better synthesis

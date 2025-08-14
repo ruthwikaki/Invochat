@@ -1,7 +1,7 @@
 
 import { createServerClient as createServerClientOriginal, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { config, envValidation } from '@/config/app-config';
+import { config } from '@/config/app-config';
 import type { Database } from '@/types/database.types';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 

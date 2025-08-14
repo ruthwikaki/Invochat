@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useForm } from 'react-hook-form';
@@ -5,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 import { useTransition, useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { type Supplier, type SupplierFormData, SupplierFormSchema } from '@/types';
+import { type Supplier, SupplierFormSchema, type SupplierFormData } from '@/types';
 import { createSupplier, updateSupplier } from '@/app/data-actions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
@@ -50,12 +51,7 @@ export function SupplierForm({ initialData }: SupplierFormProps) {
           return;
       }
       
-      // Append form data to the FormData object
-      Object.entries(data).forEach(([key, value]) => {
-          if (value !== null && value !== undefined) {
-              formData.append(key, String(value));
-          }
-      });
+      formData.append('data', JSON.stringify(data));
       
       const action = initialData
         ? updateSupplier(initialData.id, formData)
@@ -113,5 +109,3 @@ export function SupplierForm({ initialData }: SupplierFormProps) {
     </form>
   );
 }
-
-    

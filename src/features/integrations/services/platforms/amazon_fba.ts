@@ -3,7 +3,7 @@
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { logError } from '@/lib/error-handler';
-import type { Integration } from '@/types';
+import type { Integration, Json } from '@/types';
 import { refreshMaterializedViews } from '@/services/database';
 import { invalidateCompanyCache } from '@/lib/redis';
 import { logger } from '@/lib/logger';
@@ -77,9 +77,8 @@ async function syncSales(integration: Integration, credentials: { sellerId: stri
 
     for (const order of (simulatedOrders as Record<string, unknown>[])) {
         const p_order_payload = {
-            id: order.id,
             ...order
-        };
+        } as unknown as Json;
         const { error } = await supabase.rpc('record_order_from_platform', {
             p_company_id: integration.company_id,
             p_order_payload: p_order_payload,

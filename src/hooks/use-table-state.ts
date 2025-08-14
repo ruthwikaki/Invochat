@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -12,7 +11,6 @@ type UseTableStateProps<T extends string> = {
     sortColumnParamName?: string;
     sortDirectionParamName?: string;
     defaultSortColumn: T;
-    defaultSortDirection?: 'asc' | 'desc';
 };
 
 export function useTableState<T extends string>({
@@ -21,7 +19,6 @@ export function useTableState<T extends string>({
     sortColumnParamName = 'sortBy',
     sortDirectionParamName = 'sortDirection',
     defaultSortColumn,
-    defaultSortDirection = 'asc',
 }: UseTableStateProps<T>) {
     const router = useRouter();
     const pathname = usePathname();

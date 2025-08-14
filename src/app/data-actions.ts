@@ -1,3 +1,4 @@
+
 'use server';
 import { getAuthContext } from '@/lib/auth-helpers';
 import { getErrorMessage, logError } from '@/lib/error-handler';
@@ -34,7 +35,6 @@ import {
     reconcileInventoryInDb,
     checkUserPermission,
     createAuditLogInDb as createAuditLogInDbService,
-    adjustInventoryQuantityInDb,
     getAuditLogFromDB,
     getFeedbackFromDB,
     deletePurchaseOrderFromDb,
@@ -45,18 +45,18 @@ import {
     getGrossMarginAnalysisFromDB,
     createPurchaseOrdersFromSuggestionsInDb,
     logUserFeedbackInDb as logUserFeedbackInDbService,
+    getHistoricalSalesForSkus,
     getDashboardMetrics,
-    getInventoryAnalyticsFromDB,
-    getHistoricalSalesForSkus
+    getInventoryAnalyticsFromDB
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
-import type { DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, ReorderSuggestion, Message, Conversation, SalesAnalytics, CustomerAnalytics, SupplierFormData, Supplier, Customer } from '@/types';
+import type { DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, ReorderSuggestion, Message, Conversation, SalesAnalytics, CustomerAnalytics, Supplier, SupplierFormData } from '@/types';
 import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
-import { SupplierFormSchema } from '@/schemas/suppliers';
+import { getServiceRoleClient } from '@/lib/supabase/admin';
 
 export async function getProducts() {
   const { companyId } = await getAuthContext();
@@ -111,10 +111,12 @@ export async function getSupplierById(id: string) {
 
 export async function createSupplier(formData: FormData) {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         await validateCSRF(formData);
-        const data = SupplierFormSchema.parse(Object.fromEntries(formData.entries()));
+        const data = JSON.parse(formData.get('data') as string) as SupplierFormData;
         await createSupplierInDb(companyId, data);
+        await createAuditLogInDbService(companyId, userId, 'supplier_created', { name: data.name });
         revalidatePath('/suppliers');
         return { success: true };
     } catch (e) {
@@ -124,10 +126,12 @@ export async function createSupplier(formData: FormData) {
 
 export async function updateSupplier(id: string, formData: FormData) {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         await validateCSRF(formData);
-        const data = SupplierFormSchema.parse(Object.fromEntries(formData.entries()));
+        const data = JSON.parse(formData.get('data') as string) as SupplierFormData;
         await updateSupplierInDb(id, companyId, data);
+        await createAuditLogInDbService(companyId, userId, 'supplier_updated', { supplierId: id });
         revalidatePath('/suppliers');
         return { success: true };
     } catch (e) {
@@ -137,10 +141,12 @@ export async function updateSupplier(id: string, formData: FormData) {
 
 export async function deleteSupplier(formData: FormData) {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         await validateCSRF(formData);
         const id = formData.get('id') as string;
         await deleteSupplierFromDb(id, companyId);
+        await createAuditLogInDbService(companyId, userId, 'supplier_deleted', { supplierId: id });
         revalidatePath('/suppliers');
         return { success: true };
     } catch (e) {
@@ -174,7 +180,8 @@ export async function getTeamMembers() {
 
 export async function inviteTeamMember(formData: FormData): Promise<{ success: boolean, error?: string }> {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Owner');
         await validateCSRF(formData);
         const email = formData.get('email') as string;
         const company = await getCompanyById(companyId);
@@ -258,6 +265,7 @@ export async function updateCompanySettings(formData: FormData) {
 export async function getSalesData(params: { query: string; page: number, limit: number }) {
     try {
         const { companyId } = await getAuthContext();
+        await checkUserPermission(companyId, 'Member');
         const offset = (params.page - 1) * params.limit;
         return await getSalesFromDB(companyId, { ...params, offset });
     } catch(e) {
@@ -269,6 +277,7 @@ export async function getSalesData(params: { query: string; page: number, limit:
 export async function exportSales(params: { query: string }) {
     try {
         const { companyId } = await getAuthContext();
+        await checkUserPermission(companyId, 'Member');
         const { items } = await getSalesFromDB(companyId, { ...params, offset: 0, limit: 5000 });
         if (items.length >= 5000) {
             throw new Error("Export limited to 5,000 items. Please filter your results.");
@@ -284,6 +293,7 @@ export async function exportSales(params: { query: string }) {
 export async function getSalesAnalytics(): Promise<SalesAnalytics> {
     try {
         const { companyId } = await getAuthContext();
+        await checkUserPermission(companyId, 'Member');
         return await getSalesAnalyticsFromDB(companyId);
     } catch (e) {
         logError(e, {context: 'getSalesAnalytics action failed, returning default'});
@@ -294,6 +304,7 @@ export async function getSalesAnalytics(): Promise<SalesAnalytics> {
 export async function getCustomersData(params: { query: string; page: number, limit: number }) {
     try {
         const { companyId } = await getAuthContext();
+        await checkUserPermission(companyId, 'Member');
         const offset = (params.page - 1) * params.limit;
         return await getCustomersFromDB(companyId, { ...params, offset });
     } catch (e) {
@@ -304,10 +315,12 @@ export async function getCustomersData(params: { query: string; page: number, li
 
 export async function deleteCustomer(formData: FormData) {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         await validateCSRF(formData);
         const customerId = formData.get('id') as string;
         await deleteCustomerFromDb(customerId, companyId);
+        await createAuditLogInDbService(companyId, userId, 'customer_deleted', { customerId });
         return { success: true };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
@@ -317,6 +330,7 @@ export async function deleteCustomer(formData: FormData) {
 export async function exportCustomers(params: { query: string }) {
     try {
         const { companyId } = await getAuthContext();
+        await checkUserPermission(companyId, 'Member');
         const { items } = await getCustomersFromDB(companyId, { ...params, offset: 0, limit: 5000 });
         if (items.length >= 5000) {
             throw new Error("Export limited to 5,000 items. Please filter your results.");
@@ -332,6 +346,7 @@ export async function exportCustomers(params: { query: string }) {
 export async function getCustomerAnalytics(): Promise<CustomerAnalytics> {
     try {
         const { companyId } = await getAuthContext();
+        await checkUserPermission(companyId, 'Member');
         return await getCustomerAnalyticsFromDB(companyId);
     } catch (e) {
         logError(e, { context: 'getCustomerAnalytics action failed, returning default'});
@@ -342,6 +357,7 @@ export async function getCustomerAnalytics(): Promise<CustomerAnalytics> {
 export async function exportInventory(params: { query: string; status: string; sortBy: string; sortDirection: string; }) {
     try {
         const { companyId } = await getAuthContext();
+        await checkUserPermission(companyId, 'Member');
         const { items, totalCount } = await getUnifiedInventoryFromDB(companyId, { ...params, offset: 0, limit: 5000 });
         if (totalCount >= 5000) {
             throw new Error("Export limited to 5,000 items. Please filter your results.");
@@ -404,9 +420,11 @@ export async function getPurchaseOrderById(id: string) {
 export async function createPurchaseOrder(formData: FormData) {
     try {
         const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         await validateCSRF(formData);
         const data: PurchaseOrderFormData = JSON.parse(formData.get('data') as string);
         const newPoId = await createPurchaseOrderInDb(companyId, userId, data);
+        await createAuditLogInDbService(companyId, userId, 'purchase_order_created', { poId: newPoId });
         return { success: true, newPoId };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
@@ -416,10 +434,12 @@ export async function createPurchaseOrder(formData: FormData) {
 export async function updatePurchaseOrder(formData: FormData) {
     try {
         const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         await validateCSRF(formData);
         const id = formData.get('id') as string;
         const data: PurchaseOrderFormData = JSON.parse(formData.get('data') as string);
         await updatePurchaseOrderInDb(id, companyId, userId, data);
+        await createAuditLogInDbService(companyId, userId, 'purchase_order_updated', { poId: id });
         return { success: true, updatedPoId: id };
     } catch(e) {
         return { success: false, error: getErrorMessage(e) };
@@ -428,10 +448,12 @@ export async function updatePurchaseOrder(formData: FormData) {
 
 export async function deletePurchaseOrder(formData: FormData) {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         await validateCSRF(formData);
         const id = formData.get('id') as string;
         await deletePurchaseOrderFromDb(id, companyId);
+        await createAuditLogInDbService(companyId, userId, 'purchase_order_deleted', { poId: id });
         return { success: true };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
@@ -513,7 +535,8 @@ export async function getInventoryTurnoverReportData() {
 
 export async function getConversations(): Promise<Conversation[]> {
     const { companyId } = await getAuthContext();
-    const { data, error } = await getSalesFromDB(companyId, { limit: 10, offset: 0});
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.from('conversations').select('*').eq('company_id', companyId);
     if(error) {
         logError(error, {context: 'getConversations failed'});
         return [];
@@ -523,7 +546,8 @@ export async function getConversations(): Promise<Conversation[]> {
 
 export async function getMessages(conversationId: string): Promise<Message[]> {
     const { companyId } = await getAuthContext();
-    const { data, error } = await getSalesFromDB(companyId, { limit: 100, offset: 0, query: conversationId });
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.from('messages').select('*').eq('company_id', companyId).eq('conversation_id', conversationId);
     
     if (error) {
         logError(error, {context: 'getMessages failed'});
@@ -544,26 +568,31 @@ export async function handleUserMessage(params: { content: string, conversationI
     const validatedInput = chatInputSchema.parse(params);
     let { content, conversationId } = validatedInput;
 
-    // Use a real database operation here
-    const { data: sales, error: salesError } = await getSalesFromDB(companyId, { limit: 1, offset: 0 });
-    if(salesError) throw salesError;
+    const supabase = getServiceRoleClient();
 
     if (!conversationId) {
         // Create a new conversation if one doesn't exist
-        const newConv = { id: z.string().uuid().parse(crypto.randomUUID()), title: content.substring(0, 50), user_id: userId, company_id: companyId, created_at: new Date().toISOString(), last_accessed_at: new Date().toISOString(), is_starred: false };
+        const {data: newConv, error} = await supabase.from('conversations').insert({ title: content.substring(0, 50), user_id: userId, company_id: companyId}).select().single();
+        if(error || !newConv) {
+             throw new Error("Could not create new conversation.");
+        }
         conversationId = newConv.id;
     }
     
-    // Simulate getting history
-    const history: any[] = [];
-    const reversedHistory = history.reverse();
+    const {data: history, error: historyError} = await supabase.from('messages').select('*').eq('conversation_id', conversationId).order('created_at', {ascending: false}).limit(10);
+    if(historyError) {
+        logError(historyError, {context: 'Failed to retrieve conversation history'});
+        // continue, but with empty history
+    }
+
+    const reversedHistory = (history || []).reverse();
 
     const aiResponse = await universalChatFlow({
         companyId: companyId,
         conversationHistory: reversedHistory.map((m: any) => ({ 
-            role: m.role as 'user' | 'model', 
+            role: m.role, 
             content: [{ text: m.content }] 
-        })) || [],
+        })),
     });
 
     const newMessage = {
@@ -580,6 +609,11 @@ export async function handleUserMessage(params: { content: string, conversationI
         created_at: new Date().toISOString(),
         is_error: aiResponse.is_error,
     };
+
+    const { error: insertError } = await supabase.from('messages').insert(newMessage);
+    if(insertError) {
+        logError(insertError, {context: 'Failed to save assistant message'});
+    }
 
     return { newMessage: newMessage as Message, conversationId: conversationId || undefined };
 
@@ -641,8 +675,9 @@ export async function getAdvancedGrossMarginReport() {
 }
 
 export async function getImportHistory() {
+    const supabase = getServiceRoleClient();
     const { companyId } = await getAuthContext();
-    const { data, error } = await getSalesFromDB(companyId, { limit: 20, offset: 0 });
+    const { data, error } = await supabase.from('imports').select('*').eq('company_id', companyId).order('created_at', { ascending: false }).limit(20);
     if(error) throw error;
     return data;
 }
@@ -680,5 +715,3 @@ export async function getFeedbackData(params: {
         return { items: [], totalCount: 0 };
     }
 }
-
-    

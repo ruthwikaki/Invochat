@@ -21,7 +21,7 @@ export default function SupabaseTestPage() {
       setConnectionStatus('checking');
       
       // Test basic connection
-      const { data, error, count } = await supabase.from('auth.users').select('*', { count: 'exact', head: true });
+      const { error, count } = await supabase.from('auth.users').select('*', { count: 'exact', head: true });
       
       if (error) {
         throw error;

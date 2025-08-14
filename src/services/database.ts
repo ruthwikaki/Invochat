@@ -1,26 +1,12 @@
+
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, Order, ReorderSuggestion, PurchaseOrderWithItemsAndSupplier, PurchaseOrderFormData, ChannelFee, Integration, SalesAnalytics, CustomerAnalytics, InventoryAnalytics, AuditLogEntry, FeedbackWithMessages } from '@/types';
-import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, SupplierPerformanceReportSchema, ReorderSuggestionSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, InventoryAnalyticsSchema, SupplierFormSchema } from '@/types';
-import { isRedisEnabled, redisClient, invalidateCompanyCache } from '@/lib/redis';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, AuditLogEntry, FeedbackWithMessages, ReorderSuggestion, PurchaseOrderWithItemsAndSupplier, PurchaseOrderFormData, ChannelFee, Integration, SalesAnalytics, CustomerAnalytics, Order, DashboardMetrics, InventoryAnalytics } from '@/types';
+import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, SupplierPerformanceReportSchema, ReorderSuggestionSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, InventoryAnalyticsSchema, SupplierFormSchema, DashboardMetricsSchema } from '@/types';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import type { Json } from '@/types/database.types';
-import { config } from '@/config/app-config';
-import { logger } from '@/lib/logger';
-import { revalidatePath } from 'next/cache';
-
-// --- Input Validation Schemas ---
-const DatabaseQueryParamsSchema = z.object({
-  query: z.string().optional(),
-  page: z.number().min(1).max(1000).optional(),
-  limit: z.number().min(1).max(100).optional(),
-  offset: z.number().min(0).max(10000).optional(),
-  status: z.string().optional(),
-  sortBy: z.string().max(50).optional(),
-  sortDirection: z.enum(['asc', 'desc']).optional()
-});
 
 // --- Authorization Helper ---
 /**
@@ -97,8 +83,8 @@ export async function updateSettingsInDb(companyId: string, settings: Partial<Co
         const { error } = await supabase
             .from('company_settings')
             .update({ 
-                ...settings, 
-                alert_settings: settings.alert_settings as Json,
+                ...settings,
+                alert_settings: settings.alert_settings ? JSON.parse(JSON.stringify(settings.alert_settings)) : undefined,
                 updated_at: new Date().toISOString() 
             })
             .eq('company_id', companyId)
@@ -122,7 +108,15 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
         throw new Error('Invalid company ID format');
     }
     
-    const validatedParams = DatabaseQueryParamsSchema.parse(params);
+    const validatedParams = z.object({
+      query: z.string().optional(),
+      page: z.number().min(1).max(1000).optional(),
+      limit: z.number().min(1).max(100).optional(),
+      offset: z.number().min(0).max(10000).optional(),
+      status: z.string().optional(),
+      sortBy: z.string().max(50).optional(),
+      sortDirection: z.enum(['asc', 'desc']).optional()
+    }).parse(params);
     const supabase = getServiceRoleClient();
     
     try {
@@ -278,7 +272,11 @@ export async function deleteSupplierFromDb(id: string, companyId: string) {
 }
 
 export async function getCustomersFromDB(companyId: string, params: { query?: string, offset: number, limit: number }) {
-    const validatedParams = DatabaseQueryParamsSchema.parse(params);
+    const validatedParams = z.object({
+      query: z.string().optional(),
+      offset: z.number().int(),
+      limit: z.number().int()
+    }).parse(params);
     const supabase = getServiceRoleClient();
     
     let query = supabase.from('customers_view').select('*', {count: 'exact'}).eq('company_id', companyId);
@@ -308,16 +306,20 @@ export async function deleteCustomerFromDb(customerId: string, companyId: string
     }
 }
 
-export async function getSalesFromDB(companyId: string, params: { query?: string; offset: number, limit: number }): Promise<{ items: any[], totalCount: number }> {
+export async function getSalesFromDB(companyId: string, params: { query?: string; offset: number, limit: number }): Promise<{ items: Order[], totalCount: number }> {
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
-    const validatedParams = DatabaseQueryParamsSchema.parse(params);
+    const validatedParams = z.object({
+      query: z.string().optional(),
+      offset: z.number().int(),
+      limit: z.number().int()
+    }).parse(params);
     try {
         const supabase = getServiceRoleClient();
         let query = supabase.from('orders_view').select('*', { count: 'exact' }).eq('company_id', companyId);
         if (validatedParams.query) {
             query = query.or(`order_number.ilike.%${validatedParams.query}%,customer_email.ilike.%${validatedParams.query}%`);
         }
-        const limit = Math.min(validatedParams.limit || 25, 5000);
+        const limit = Math.min(validatedParams.limit || 25, 100);
         const { data, error, count } = await query.order('created_at', { ascending: false }).range(validatedParams.offset || 0, (validatedParams.offset || 0) + limit - 1);
         if (error) throw error;
         
@@ -347,7 +349,13 @@ export async function getCustomerAnalyticsFromDB(companyId: string): Promise<Cus
         logError(error, { context: 'getCustomerAnalyticsFromDB failed' });
         throw error;
     }
-    return CustomerAnalyticsSchema.parse(data);
+    return CustomerAnalyticsSchema.parse(data || {
+      total_customers: 0,
+      new_customers_30d: 0,
+      returning_customers: 0,
+      average_order_value: 0,
+      customer_lifetime_value: 0
+    });
 }
 
 export async function getDeadStockReportFromDB(companyId: string): Promise<{ deadStockItems: z.infer<typeof DeadStockItemSchema>[], totalValue: number, totalUnits: number }> {
@@ -360,10 +368,10 @@ export async function getDeadStockReportFromDB(companyId: string): Promise<{ dea
         return { deadStockItems: [], totalValue: 0, totalUnits: 0 };
     }
     
-    const reportData = (data as any) || { deadStockItems: [], totalValue: 0, totalUnits: 0 };
+    const reportData = (data as any) || { dead_stock_items: [], total_value: 0 };
 
-    const deadStockItems = DeadStockItemSchema.array().parse(reportData.deadStockItems || []);
-    const totalValue = reportData.totalValue || 0;
+    const deadStockItems = DeadStockItemSchema.array().parse(reportData.dead_stock_items || []);
+    const totalValue = reportData.total_value || 0;
     const totalUnits = deadStockItems.reduce((sum: number, item) => sum + item.quantity, 0);
 
     return { deadStockItems, totalValue, totalUnits };
@@ -381,12 +389,7 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
             throw error;
         }
 
-        const suggestions = z.array(ReorderSuggestionSchema.omit({
-            base_quantity: true,
-            adjustment_reason: true,
-            seasonality_factor: true,
-            confidence: true,
-        })).parse(data || []);
+        const suggestions = z.array(ReorderSuggestionSchema).parse(data || []);
 
         return suggestions.map(s => {
             if (s.suggested_reorder_quantity > 10000) {
@@ -568,10 +571,8 @@ export async function createPurchaseOrderInDb(companyId: string, userId: string,
     if (!z.string().uuid().safeParse(companyId).success || !z.string().uuid().safeParse(userId).success) {
         throw new Error('Invalid ID format');
     }
-    for (const item of poData.line_items) {
-        if (item.cost < 0 || item.cost > 10000000) {
-            throw new Error(`Invalid item cost: ${item.cost}. Must be between $0 and $100,000.`);
-        }
+    if (poData.line_items.some(item => item.cost < 0 || item.cost > 10000000)) {
+        throw new Error(`Invalid item cost. Must be between $0 and $100,000.`);
     }
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('create_full_purchase_order', {
@@ -579,9 +580,9 @@ export async function createPurchaseOrderInDb(companyId: string, userId: string,
         p_user_id: userId,
         p_supplier_id: poData.supplier_id,
         p_status: poData.status,
-        p_notes: poData.notes || '',
+        p_notes: poData.notes,
         p_expected_arrival: poData.expected_arrival_date?.toISOString() || new Date().toISOString(),
-        p_line_items: poData.line_items as any,
+        p_line_items: poData.line_items,
     }).select('id').single();
 
     if (error) {
@@ -596,10 +597,8 @@ export async function updatePurchaseOrderInDb(poId: string, companyId: string, u
     if (!z.string().uuid().safeParse(poId).success || !z.string().uuid().safeParse(companyId).success) {
         throw new Error('Invalid ID format');
     }
-    for (const item of poData.line_items) {
-        if (item.cost < 0 || item.cost > 10000000) {
-            throw new Error(`Invalid item cost: ${item.cost}. Must be between $0 and $100,000.`);
-        }
+    if (poData.line_items.some(item => item.cost < 0 || item.cost > 10000000)) {
+        throw new Error(`Invalid item cost. Must be between $0 and $100,000.`);
     }
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('update_full_purchase_order', {
@@ -608,9 +607,9 @@ export async function updatePurchaseOrderInDb(poId: string, companyId: string, u
         p_user_id: userId,
         p_supplier_id: poData.supplier_id,
         p_status: poData.status,
-        p_notes: poData.notes || '',
+        p_notes: poData.notes,
         p_expected_arrival: poData.expected_arrival_date?.toISOString() || new Date().toISOString(),
-        p_line_items: poData.line_items as any,
+        p_line_items: poData.line_items,
     });
 
     if (error) {
@@ -753,84 +752,6 @@ export async function getFinancialImpactOfPromotionFromDB(companyId: string, sku
     return data; 
 }
 
-export async function adjustInventoryQuantityInDb(companyId: string, userId: string, variantId: string, newQuantity: number, reason: string) {
-    if (!z.string().uuid().safeParse(companyId).success || !z.string().uuid().safeParse(variantId).success || !z.string().uuid().safeParse(userId).success) {
-        throw new Error('Invalid ID format');
-    }
-    if (newQuantity < 0) {
-        throw new Error("Inventory quantity cannot be negative.");
-    }
-    const supabase = getServiceRoleClient();
-    const { error } = await supabase.rpc('adjust_inventory_quantity', {
-        p_company_id: companyId,
-        p_variant_id: variantId,
-        p_new_quantity: newQuantity,
-        p_change_reason: reason,
-        p_user_id: userId
-    });
-
-    if(error) {
-        logError(error, { context: `Failed to adjust inventory for variant ${variantId}`});
-        throw new Error("Unable to adjust inventory. Please try again.");
-    }
-}
-
-export async function getAuditLogFromDB(companyId: string, params: { query?: string; offset: number; limit: number }): Promise<{ items: AuditLogEntry[], totalCount: number }> {
-    if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
-    const validatedParams = DatabaseQueryParamsSchema.parse(params);
-    const supabase = getServiceRoleClient();
-    
-    try {
-        let query = supabase.from('audit_log_view').select('*', { count: 'exact' }).eq('company_id', companyId);
-        if (validatedParams.query) {
-            query = query.or(`action.ilike.%${validatedParams.query}%,user_email.ilike.%${validatedParams.query}%`);
-        }
-        const limit = Math.min(validatedParams.limit || 25, 100);
-        const { data, error, count } = await query
-            .order('created_at', { ascending: false })
-            .range(validatedParams.offset || 0, (validatedParams.offset || 0) + limit - 1);
-            
-        if (error) throw error;
-        
-        return {
-            items: z.array(AuditLogEntrySchema).parse(data || []),
-            totalCount: count || 0,
-        };
-    } catch(e) {
-        logError(e, { context: 'getAuditLogFromDB failed' });
-        throw new Error('Failed to retrieve audit log.');
-    }
-}
-
-export async function getFeedbackFromDB(companyId: string, params: { query?: string, offset: number, limit: number }): Promise<{ items: FeedbackWithMessages[], totalCount: number }> {
-    if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
-    const validatedParams = DatabaseQueryParamsSchema.parse(params);
-    const supabase = getServiceRoleClient();
-    
-    try {
-        let query = supabase.from('feedback_view').select('*', { count: 'exact' }).eq('company_id', companyId);
-
-        if (validatedParams.query) {
-            query = query.or(`user_email.ilike.%${validatedParams.query}%,user_message_content.ilike.%${validatedParams.query}%,assistant_message_content.ilike.%${validatedParams.query}%`);
-        }
-
-        const limit = Math.min(validatedParams.limit || 25, 100);
-        const { data, error, count } = await query
-            .order('created_at', { ascending: false })
-            .range(validatedParams.offset || 0, (validatedParams.offset || 0) + limit - 1);
-
-        if (error) throw error;
-
-        return {
-            items: z.array(FeedbackSchema).parse(data || []),
-            totalCount: count || 0
-        };
-    } catch (e) {
-        logError(e, { context: 'getFeedbackFromDB failed' });
-        throw new Error('Failed to retrieve feedback data.');
-    }
-}
-
 export async function createPurchaseOrdersFromSuggestionsInDb(companyId: string, userId: string, suggestions: ReorderSuggestion[]) {
     if (!z.string().uuid().safeParse(companyId).success || !z.string().uuid().safeParse(userId).success) {
         throw new Error('Invalid ID format');
@@ -850,16 +771,6 @@ export async function createPurchaseOrdersFromSuggestionsInDb(companyId: string,
     return data;
 }
 
-export async function refreshMaterializedViews(companyId: string) {
-  if (!z.string().uuid().safeParse(companyId).success) return;
-  const supabase = getServiceRoleClient();
-  // Using a single RPC call is more efficient
-  const { error } = await supabase.rpc('refresh_all_matviews', { p_company_id: companyId });
-  if (error) {
-    logError(error, { context: 'Failed to refresh materialized views', companyId });
-  }
-}
-
 export async function getHistoricalSalesForSkus(
     companyId: string, 
     skus: string[]
@@ -876,14 +787,13 @@ export async function getHistoricalSalesForSkus(
     
     return (data || []).map(item => ({
         sku: item.sku,
-        monthly_sales: [{ // This is a simplified transformation for compatibility
+        monthly_sales: [{
             sale_date: (item.orders as {created_at: string}).created_at,
             total_quantity: item.quantity
         }]
     }));
 }
 
-// Renamed function to match usage in product-demand-forecast-flow
 export async function getHistoricalSalesForSingleSkuFromDB(
     companyId: string, 
     sku: string
@@ -899,44 +809,3 @@ export async function getHistoricalSalesForSingleSkuFromDB(
     }
     return data || [];
 }
-
-export async function getDashboardMetrics(companyId: string, period: string | number): Promise<DashboardMetrics> {
-    const days = typeof period === 'number' ? period : parseInt(String(period).replace(/\\D/g, ''), 10);
-    const supabase = getServiceRoleClient();
-    try {
-        const { data, error } = await supabase.rpc('get_dashboard_metrics', { p_company_id: companyId, p_days: days });
-        if (error) {
-            logError(error, { context: 'get_dashboard_metrics failed', companyId, period });
-            throw new Error('Could not retrieve dashboard metrics from the database.');
-        }
-        if (data == null) {
-            logger.warn('[RPC Error] get_dashboard_metrics returned null. This can happen with no data.');
-            throw new Error('No response from get_dashboard_metrics RPC call.');
-        }
-        return DashboardMetricsSchema.parse(data);
-    } catch (e) {
-        logError(e, { context: 'getDashboardMetrics failed', companyId, period });
-        throw new Error('Could not retrieve dashboard metrics from the database.');
-    }
-}
-
-
-export async function getInventoryAnalyticsFromDB(companyId: string): Promise<InventoryAnalytics> {
-    if (!z.string().uuid().safeParse(companyId).success) {
-        throw new Error('Invalid company ID format');
-    }
-    try {
-        const supabase = getServiceRoleClient();
-        const { data, error } = await supabase.rpc('get_inventory_analytics', { p_company_id: companyId });
-        if (error) {
-            logError(error, { context: 'getInventoryAnalyticsFromDB failed', companyId });
-            throw new Error('Failed to retrieve inventory analytics');
-        }
-        return InventoryAnalyticsSchema.parse(data);
-    } catch (error) {
-        logError(error, { context: 'getInventoryAnalyticsFromDB unexpected error', companyId });
-        throw error;
-    }
-}
-
-    

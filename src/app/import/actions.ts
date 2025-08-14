@@ -14,7 +14,6 @@ import { revalidatePath } from 'next/cache';
 import { suggestCsvMappings } from '@/ai/flows/csv-mapping-flow';
 import { getAuthContext } from '@/lib/auth-helpers';
 import { checkUserPermission, refreshMaterializedViews } from '@/services/database';
-import type { Json } from '@/types/database.types';
 import { config } from '@/config/app-config';
 
 const MAX_FILE_SIZE_BYTES = config.import.maxFileSizeMB * 1024 * 1024;
@@ -312,5 +311,3 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
         return { success: false, isDryRun, summaryMessage: `An unexpected server error occurred: ${errorMessage}` };
     }
 }
-
-    

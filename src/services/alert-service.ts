@@ -1,3 +1,4 @@
+
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -96,5 +97,3 @@ export async function dismissAlert(alertId: string, companyId: string) {
     throw error;
   }
 }
-
-    
