@@ -5,6 +5,7 @@ import { getPurchaseOrdersFromDB, getSuppliersDataFromDB } from "@/services/data
 import { Button } from "@/components/ui/button";
 import Link from 'next/link';
 import { getAuthContext } from "@/lib/auth-helpers";
+import type { PurchaseOrderWithItemsAndSupplier, Supplier } from "@/types";
 
 export const dynamic = 'force-dynamic';
 
@@ -27,12 +28,10 @@ export default async function PurchaseOrdersPage() {
             </AppPageHeader>
             <div className="mt-6">
                 <PurchaseOrdersClientPage 
-                    initialPurchaseOrders={purchaseOrders}
-                    suppliers={suppliers}
+                    initialPurchaseOrders={purchaseOrders as PurchaseOrderWithItemsAndSupplier[]}
+                    suppliers={suppliers as Supplier[]}
                 />
             </div>
         </AppPage>
     )
 }
-
-    

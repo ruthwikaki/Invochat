@@ -104,7 +104,7 @@ async function generateWithRetry(request: GenerateOptions): Promise<GenerateResp
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
             const modelToUse = attempt === 1 ? config.ai.model : 'googleai/gemini-1.5-flash';
-            const finalRequest = { ...request, model: modelToUse as any };
+            const finalRequest: GenerateOptions = { ...request, model: modelToUse as any };
             return await ai.generate(finalRequest);
         } catch (e: unknown) {
             lastError = e instanceof Error ? e : new Error(getErrorMessage(e));
@@ -161,9 +161,9 @@ export const universalChatFlow = ai.defineFlow(
         }));
         
         const response = await generateWithRetry({
-            model: config.ai.model as any,
             tools: safeToolsForOrchestrator as any,
             messages: genkitHistory,
+            model: config.ai.model as any,
             config: {
                 temperature: 0.2, // Slightly more creative for better synthesis
                 maxOutputTokens: config.ai.maxOutputTokens,
