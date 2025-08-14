@@ -391,6 +391,8 @@ export const SalesAnalyticsSchema = z.object({
     total_orders: z.number().int().default(0),
     average_order_value: z.number().default(0),
 }).passthrough().optional();
+export type SalesAnalytics = z.infer<typeof SalesAnalyticsSchema>;
+
 
 export const InventoryAnalyticsSchema = z.object({
     total_inventory_value: z.number().int(),
@@ -402,23 +404,20 @@ export type InventoryAnalytics = z.infer<typeof InventoryAnalyticsSchema>;
 
 export const CustomerAnalyticsSchema = z.object({
     total_customers: z.number().int(),
-    new_customers_30d: z.number().int(),
-    returning_customers: z.number(),
-    average_order_value: z.number().int(),
-    customer_lifetime_value: z.number().int(),
-    top_customers: z.array(z.object({
-        customer_id: z.string().uuid(),
-        customer_name: z.string().nullable(),
-        total_orders: z.number().int(),
-        total_spent: z.number().int()
+    new_customers_last_30_days: z.number().int(),
+    repeat_customer_rate: z.number(),
+    average_lifetime_value: z.number().int(),
+    top_customers_by_spend: z.array(z.object({
+        name: z.string().nullable(),
+        value: z.number().int()
     })),
-    customer_segments: z.array(z.object({
-        segment: z.string(),
-        count: z.number().int(),
-        revenue: z.number().int(),
+    top_customers_by_sales: z.array(z.object({
+        name: z.string().nullable(),
+        value: z.number().int()
     })),
 }).passthrough();
 export type CustomerAnalytics = z.infer<typeof CustomerAnalyticsSchema>;
+
 
 export { HealthCheckResultSchema };
 export type HealthCheckResult = z.infer<typeof HealthCheckResultSchema>;
@@ -532,12 +531,13 @@ export const FeedbackSchema = z.object({
 }).passthrough();
 export type FeedbackWithMessages = z.infer<typeof FeedbackSchema>;
 
-export type ImportJob = {
-  id: string;
-  created_at: string;
-  import_type: string;
-  file_name: string;
-  status: string;
-  processed_rows: number | null;
-  failed_rows: number | null;
-};
+export const ImportJobSchema = z.object({
+  id: z.string().uuid(),
+  created_at: z.string(),
+  import_type: z.string(),
+  file_name: z.string(),
+  status: z.string(),
+  processed_rows: z.number().nullable(),
+  failed_rows: z.number().nullable(),
+});
+export type ImportJob = z.infer<typeof ImportJobSchema>;
