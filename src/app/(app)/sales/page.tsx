@@ -2,7 +2,11 @@
 import { getSalesData, exportSales, getSalesAnalytics } from '@/app/data-actions';
 import { SalesClientPage } from './sales-client-page';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
+<<<<<<< HEAD
 import type { SalesAnalytics as SalesAnalyticsType } from '@/types';
+=======
+import type { SalesAnalytics } from '@/types';
+>>>>>>> 6168ea0773980b7de6d6d789337dd24b18126f79
 
 const ITEMS_PER_PAGE = 25;
 
@@ -36,7 +40,11 @@ export default async function SalesPage({
                 initialSales={salesData.items}
                 totalCount={salesData.totalCount}
                 itemsPerPage={ITEMS_PER_PAGE}
+<<<<<<< HEAD
                 analyticsData={analyticsData as SalesAnalyticsType}
+=======
+                analyticsData={analyticsData as SalesAnalytics}
+>>>>>>> 6168ea0773980b7de6d6d789337dd24b18126f79
                 exportAction={handleExport}
             />
         </div>

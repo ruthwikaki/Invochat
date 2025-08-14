@@ -52,8 +52,8 @@ async function updateImportJob(importId: string, updates: Partial<ImportResult>)
     const { error } = await supabase.from('imports').update({
         processed_rows: updates.processedCount,
         failed_rows: updates.errorCount,
-        errors: updates.errors as Json,
-        summary: updates.summary as Json,
+        errors: updates.errors as any,
+        summary: updates.summary as any,
         status: (updates.errorCount ?? 0) > 0 ? 'completed_with_errors' : 'completed',
         completed_at: new Date().toISOString()
     }).eq('id', importId);
@@ -67,7 +67,7 @@ async function failImportJob(importId: string, errorMessage: string) {
     const supabase = getServiceRoleClient();
     const { error } = await supabase.from('imports').update({
         status: 'failed',
-        errors: [{ row: 0, message: errorMessage, data: {} }] as Json,
+        errors: [{ row: 0, message: errorMessage, data: {} }] as any,
         completed_at: new Date().toISOString()
     }).eq('id', importId);
      if (error) {
@@ -312,3 +312,5 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
         return { success: false, isDryRun, summaryMessage: `An unexpected server error occurred: ${errorMessage}` };
     }
 }
+
+    
