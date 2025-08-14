@@ -14,7 +14,7 @@ export async function getReorderReport(): Promise<ReorderSuggestion[]> {
     try {
         const { companyId } = await getAuthContext();
         // The getReorderSuggestions flow already returns the fully enhanced suggestion object
-        return await getReorderSuggestionsFlow({ companyId });
+        return await getReorderSuggestionsFlow({ companyId }) as any;
     } catch (error) {
         // Log the error for debugging but don't throw it
         logError(error, { context: 'getReorderReport failed' });
@@ -57,5 +57,3 @@ export async function exportReorderSuggestions(suggestions: ReorderSuggestion[])
         return { success: false, error: getErrorMessage(e) };
     }
 }
-
-    

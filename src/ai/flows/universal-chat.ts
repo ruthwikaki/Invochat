@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileoverview Implements the advanced, multi-agent AI chat system for AIventory.
@@ -103,7 +104,7 @@ async function generateWithRetry(request: GenerateOptions): Promise<GenerateResp
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
             const modelToUse = attempt === 1 ? config.ai.model : 'googleai/gemini-1.5-flash';
-            const finalRequest: GenerateOptions = { ...request, model: modelToUse as any };
+            const finalRequest = { ...request, model: modelToUse as any };
             return await ai.generate(finalRequest);
         } catch (e: unknown) {
             lastError = e instanceof Error ? e : new Error(getErrorMessage(e));
@@ -160,6 +161,7 @@ export const universalChatFlow = ai.defineFlow(
         }));
         
         const response = await generateWithRetry({
+            model: config.ai.model as any,
             tools: safeToolsForOrchestrator as any,
             messages: genkitHistory,
             config: {

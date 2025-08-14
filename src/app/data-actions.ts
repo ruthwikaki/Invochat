@@ -311,7 +311,7 @@ export async function getSalesAnalytics(): Promise<SalesAnalytics> {
         return analytics;
     } catch (e) {
         logError(e, {context: 'getSalesAnalytics action failed, returning default'});
-        return { total_revenue: 0, total_orders: 0, average_order_value: 0 };
+        return { total_sales: 0, sales_by_channel: {}, sales_by_product: [], sales_trend: [] };
     }
 }
 
@@ -380,7 +380,7 @@ export async function getCustomerAnalytics(): Promise<CustomerAnalytics> {
         return analyticsData;
     } catch (e) {
         logError(e, {context: 'getCustomerAnalytics action failed, returning default'});
-        return { total_customers: 0, new_customers_last_30_days: 0, repeat_customer_rate: 0, average_lifetime_value: 0, top_customers_by_spend: [], top_customers_by_sales: [] };
+        return { total_customers: 0, new_customers_30d: 0, returning_customers: 0, average_order_value: 0, customer_lifetime_value: 0, top_customers: [], customer_segments: [] };
     }
 }
 
@@ -833,11 +833,4 @@ export async function getFeedbackData(params: {
         logError(error, { context: 'getFeedbackData failed' });
         return { items: [], totalCount: 0 };
     }
-}
-export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSuggestion[]) {
-    const { companyId, userId } = await getAuthContext();
-    const createdPoCount = await createPurchaseOrdersFromSuggestionsInDb(companyId, userId, suggestions);
-    revalidatePath('/purchase-orders');
-    revalidatePath('/analytics/reordering');
-    return { success: true, createdPoCount };
 }
