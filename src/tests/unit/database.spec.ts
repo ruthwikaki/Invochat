@@ -1,3 +1,4 @@
+
 import { describe, it, expect, vi } from 'vitest';
 import { getDashboardMetrics } from '@/services/database';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -51,7 +52,3 @@ describe('Database Service - Business Logic', () => {
     await expect(getDashboardMetrics('test-company-id', '30d')).rejects.toThrow('Could not retrieve dashboard metrics from the database.');
   });
 });
-
-
-
-

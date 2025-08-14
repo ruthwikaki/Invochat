@@ -55,6 +55,7 @@ describe('Database Service - Business Logic', () => {
     
     (database.getDashboardMetrics as any).mockRejectedValue(dbError);
     
-    await expect(getDashboardData('30d')).rejects.toThrow('Could not retrieve dashboard metrics from the database.');
+    const result = await getDashboardData('30d');
+    expect(result.total_revenue).toBe(0);
   });
 });

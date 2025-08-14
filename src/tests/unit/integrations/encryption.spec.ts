@@ -1,7 +1,6 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createOrUpdateSecret, getSecret } from '@/features/integrations/services/encryption';
-import * as admin from '@/lib/supabase/admin';
 
 // Mock the Supabase admin client
 const mockSupabaseVault = {

@@ -3,7 +3,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ai } from '@/ai/genkit';
 import { testGenkitConnection } from '@/services/genkit';
 import { envValidation } from '@/config/app-config';
-import { config } from '@/config/app-config';
 
 // Mock the AI module
 vi.mock('@/ai/genkit', () => ({

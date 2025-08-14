@@ -3,10 +3,10 @@
 
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useTransition, useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { type Supplier, SupplierFormSchema } from '@/types';
+import { type Supplier, SupplierFormSchema, type SupplierFormData } from '@/types';
 import { createSupplier, updateSupplier } from '@/app/data-actions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
@@ -31,7 +31,7 @@ export function SupplierForm({ initialData }: SupplierFormProps) {
     generateAndSetCsrfToken(setCsrfToken);
   }, []);
 
-  const form = useForm<z.infer<typeof SupplierFormSchema>>({
+  const form = useForm<SupplierFormData>({
     resolver: zodResolver(SupplierFormSchema),
     defaultValues: initialData || {
       name: '',
@@ -42,7 +42,7 @@ export function SupplierForm({ initialData }: SupplierFormProps) {
     },
   });
 
-  const onSubmit = (data: z.infer<typeof SupplierFormSchema>) => {
+  const onSubmit = (data: SupplierFormData) => {
     startTransition(async () => {
       const formData = new FormData();
       if (csrfToken) {
@@ -115,5 +115,3 @@ export function SupplierForm({ initialData }: SupplierFormProps) {
     </form>
   );
 }
-
-    

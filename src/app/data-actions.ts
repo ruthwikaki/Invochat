@@ -57,11 +57,12 @@ import { SupplierFormSchema } from '@/types';
 import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
-import type { Message, Conversation, Customer, SalesAnalytics } from '@/types';
+import type { Message, Conversation, Customer, SalesAnalytics, CustomerAnalytics } from '@/types';
 import { z } from 'zod';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
 import { revalidatePath } from 'next/cache';
-import { createServiceRoleClient } from '@/lib/supabase/admin';
+import { getServiceRoleClient } from '@/lib/supabase/admin';
+import { getReorderSuggestions as getReorderSuggestionsFlow } from '@/ai/flows/reorder-tool';
 
 
 export async function getProducts() {
@@ -307,7 +308,7 @@ export async function getSalesAnalytics(): Promise<SalesAnalytics> {
         return analytics;
     } catch (e) {
         logError(e, {context: 'getSalesAnalytics action failed, returning default'});
-        return { total_sales: 0, sales_by_channel: {}, sales_by_product: [], sales_trend: [] };
+        return { total_revenue: 0, total_orders: 0, average_order_value: 0 };
     }
 }
 
@@ -591,7 +592,7 @@ export async function getInventoryTurnoverReportData() {
 export async function getConversations(): Promise<Conversation[]> {
     const user = await getCurrentUser();
     if (!user) return [];
-    const supabase = createServiceRoleClient();
+    const supabase = getServiceRoleClient();
     const { data, error } = await supabase
         .from('conversations')
         .select('*')
@@ -607,7 +608,7 @@ export async function getConversations(): Promise<Conversation[]> {
 export async function getMessages(conversationId: string): Promise<Message[]> {
     const user = await getCurrentUser();
     if (!user) return [];
-    const supabase = createServiceRoleClient();
+    const supabase = getServiceRoleClient();
     const { data, error } = await supabase
         .from('messages')
         .select(`
@@ -646,7 +647,7 @@ export async function handleUserMessage(params: { content: string, conversationI
     const validatedInput = chatInputSchema.parse(params);
     let { content, conversationId } = validatedInput;
 
-    const supabase = createServiceRoleClient();
+    const supabase = getServiceRoleClient();
     
     if (!conversationId) {
         const { data: newConversation, error: convError } = await supabase.from('conversations').insert({
@@ -785,7 +786,7 @@ export async function adjustInventoryQuantity(formData: FormData) {
 
 export async function getImportHistory() {
     const { companyId } = await getAuthContext();
-    const supabase = createServiceRoleClient();
+    const supabase = getServiceRoleClient();
     const { data, error } = await supabase.from('imports').select('*').eq('company_id', companyId).order('created_at', { ascending: false }).limit(20);
     if(error) throw error;
     return data;
@@ -824,5 +825,3 @@ export async function getFeedbackData(params: {
         return { items: [], totalCount: 0 };
     }
 }
-
-    
