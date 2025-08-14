@@ -57,11 +57,11 @@ import { SupplierFormSchema } from '@/types';
 import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
-import type { Message, Conversation, CustomerAnalytics } from '@/types';
+import type { Message, Conversation, Customer, SalesAnalytics } from '@/types';
 import { z } from 'zod';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
 import { revalidatePath } from 'next/cache';
-import { getReorderSuggestions as getReorderSuggestionsFlow } from '@/ai/flows/reorder-tool';
+import { createServiceRoleClient } from '@/lib/supabase/admin';
 
 
 export async function getProducts() {
@@ -289,11 +289,12 @@ export async function exportSales(params: { query: string }) {
         const csv = Papa.unparse(items);
         return { success: true, data: csv };
     } catch (e) {
+        logError(e, { context: 'exportSales failed' });
         return { success: false, error: getErrorMessage(e) };
     }
 }
 
-export async function getSalesAnalytics() {
+export async function getSalesAnalytics(): Promise<SalesAnalytics> {
     try {
         const { companyId } = await getAuthContext();
         const cacheKey = `cache:sales-analytics:${companyId}`;
@@ -590,7 +591,7 @@ export async function getInventoryTurnoverReportData() {
 export async function getConversations(): Promise<Conversation[]> {
     const user = await getCurrentUser();
     if (!user) return [];
-    const supabase = getServiceRoleClient();
+    const supabase = createServiceRoleClient();
     const { data, error } = await supabase
         .from('conversations')
         .select('*')
@@ -606,7 +607,7 @@ export async function getConversations(): Promise<Conversation[]> {
 export async function getMessages(conversationId: string): Promise<Message[]> {
     const user = await getCurrentUser();
     if (!user) return [];
-    const supabase = getServiceRoleClient();
+    const supabase = createServiceRoleClient();
     const { data, error } = await supabase
         .from('messages')
         .select(`
@@ -645,7 +646,7 @@ export async function handleUserMessage(params: { content: string, conversationI
     const validatedInput = chatInputSchema.parse(params);
     let { content, conversationId } = validatedInput;
 
-    const supabase = getServiceRoleClient();
+    const supabase = createServiceRoleClient();
     
     if (!conversationId) {
         const { data: newConversation, error: convError } = await supabase.from('conversations').insert({
@@ -670,7 +671,7 @@ export async function handleUserMessage(params: { content: string, conversationI
 
     const aiResponse = await universalChatFlow({
         companyId: companyId,
-        conversationHistory: reversedHistory.map(m => ({ 
+        conversationHistory: reversedHistory.map((m: any) => ({ 
             role: m.role as 'user' | 'model', 
             content: [{ text: m.content }] 
         })) || [],
@@ -704,7 +705,7 @@ export async function handleUserMessage(params: { content: string, conversationI
     
     if (messageError) throw messageError;
 
-    return { newMessage: newMessage as Message, conversationId: conversationId };
+    return { newMessage: newMessage as Message, conversationId: conversationId || undefined };
 
   } catch(e) {
     const errorMessage = getErrorMessage(e);
@@ -784,7 +785,7 @@ export async function adjustInventoryQuantity(formData: FormData) {
 
 export async function getImportHistory() {
     const { companyId } = await getAuthContext();
-    const supabase = getServiceRoleClient();
+    const supabase = createServiceRoleClient();
     const { data, error } = await supabase.from('imports').select('*').eq('company_id', companyId).order('created_at', { ascending: false }).limit(20);
     if(error) throw error;
     return data;
@@ -823,3 +824,5 @@ export async function getFeedbackData(params: {
         return { items: [], totalCount: 0 };
     }
 }
+
+    

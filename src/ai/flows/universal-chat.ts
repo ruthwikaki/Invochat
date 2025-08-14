@@ -27,7 +27,8 @@ import { getProductDemandForecast } from './product-demand-forecast-flow';
 import { getDemandForecast, getAbcAnalysis, getGrossMarginAnalysis, getNetMarginByChannel, getMarginTrends, getSalesVelocity, getPromotionalImpactAnalysis } from './analytics-tools';
 import { logError, getErrorMessage } from '@/lib/error-handler';
 import crypto from 'crypto';
-import type { GenerateOptions, GenerateResponse, MessageData, Tool } from 'genkit';
+import type { GenerateOptions, GenerateResponse, MessageData, Tool, ToolArgument } from 'genkit';
+import type { ZodTypeAny } from 'zod';
 
 // These are the tools that are safe and fully implemented for the AI to use.
 const safeToolsForOrchestrator: Tool[] = [
@@ -104,7 +105,8 @@ async function generateWithRetry(request: GenerateOptions): Promise<GenerateResp
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
             const modelToUse = attempt === 1 ? config.ai.model : 'googleai/gemini-1.5-flash';
-            return await ai.generate({ ...request, model: modelToUse as any});
+            const finalRequest: GenerateOptions = { ...request, model: modelToUse as any };
+            return await ai.generate(finalRequest);
         } catch (e: unknown) {
             lastError = e instanceof Error ? e : new Error(getErrorMessage(e));
             logger.warn(`[AI Generate] Attempt ${attempt} failed: ${lastError.message}`);
@@ -160,7 +162,7 @@ export const universalChatFlow = ai.defineFlow(
         }));
         
         const response = await generateWithRetry({
-            tools: safeToolsForOrchestrator,
+            tools: safeToolsForOrchestrator as ToolArgument<ZodTypeAny, ZodTypeAny>[],
             messages: genkitHistory,
             config: {
                 temperature: 0.2, // Slightly more creative for better synthesis
@@ -255,3 +257,5 @@ export const universalChatFlow = ai.defineFlow(
     }
   }
 );
+
+    

@@ -195,8 +195,8 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <TopCustomerList title="Top Customers by Spend" data={(analyticsData.top_customers || []).map(c => ({ name: c.customer_name, value: c.total_spent}))} icon={Trophy} valueLabel="spend" />
-            <TopCustomerList title="Top Customers by Sales" data={(analyticsData.top_customers || []).map(c => ({ name: c.customer_name, value: c.total_orders}))} icon={ShoppingBag} valueLabel="orders" />
+            <TopCustomerList title="Top Customers by Spend" data={analyticsData.top_customers} icon={Trophy} valueLabel="spend" />
+            <TopCustomerList title="Top Customers by Sales" data={analyticsData.top_customers} icon={ShoppingBag} valueLabel="orders" />
         </div>
 
         <Card>
@@ -292,3 +292,5 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
     </div>
   );
 }
+
+    

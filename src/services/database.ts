@@ -2,12 +2,16 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, TeamMember, SupplierFormData, AuditLogEntry, FeedbackWithMessages, ReorderSuggestion, PurchaseOrderWithItemsAndSupplier, PurchaseOrderFormData, ChannelFee, Integration, SalesAnalytics, CustomerAnalytics, InventoryAnalytics, Supplier } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithItems, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier } from '@/types';
 import { CompanySettingsSchema, SupplierFormSchema, UnifiedInventoryItemSchema, OrderSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, SupplierPerformanceReportSchema, ReorderSuggestionSchema } from '@/types';
+import { isRedisEnabled, redisClient, invalidateCompanyCache } from '@/lib/redis';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import type { Json } from '@/types/database.types';
-import { invalidateCompanyCache } from '@/lib/redis';
+import { config } from '@/config/app-config';
+import { logger } from '@/lib/logger';
+import { createServerClient } from '@supabase/ssr';
+
 
 // --- Input Validation Schemas ---
 const DatabaseQueryParamsSchema = z.object({
@@ -204,7 +208,7 @@ export async function getSuppliersDataFromDB(companyId: string): Promise<Supplie
             logError(error, { context: 'getSuppliersDataFromDB failed', companyId });
             throw new Error('Failed to retrieve suppliers');
         }
-        return z.array(SupplierFormSchema).parse(data || []);
+        return (data || []) as Supplier[];
     } catch (error) {
         logError(error, { context: 'getSuppliersDataFromDB unexpected error', companyId });
         throw error;
@@ -327,7 +331,7 @@ export async function getSalesFromDB(companyId: string, params: { query?: string
 export async function getSalesAnalyticsFromDB(companyId: string): Promise<SalesAnalytics> {
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_sales_analytics_v2', { p_company_id: companyId });
+    const { data, error } = await supabase.rpc('get_sales_analytics', { p_company_id: companyId });
     if (error) {
         logError(error, { context: 'getSalesAnalyticsFromDB failed' });
         throw error;
@@ -620,7 +624,7 @@ export async function updatePurchaseOrderInDb(poId: string, companyId: string, u
     return data;
 }
 
-export async function getPurchaseOrdersFromDB(companyId: string) {
+export async function getPurchaseOrdersFromDB(companyId: string): Promise<PurchaseOrderWithItemsAndSupplier[]> {
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase
@@ -875,3 +879,5 @@ export async function getHistoricalSalesForSingleSkuFromDB(
         total_quantity: item.quantity
     }));
 }
+
+    
