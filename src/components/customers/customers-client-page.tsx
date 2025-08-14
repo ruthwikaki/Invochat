@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useTransition, useEffect } from 'react';
@@ -185,6 +184,10 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
     return <EmptyCustomerState />;
   }
 
+  const topCustomersBySpendData = (analyticsData.top_customers || []).map(c => ({ name: c.customer_name, value: c.total_spent }));
+  const topCustomersByOrdersData = (analyticsData.top_customers || []).map(c => ({ name: c.customer_name, value: c.total_orders }));
+
+
   return (
     <div className="space-y-6">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -195,8 +198,8 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <TopCustomerList title="Top Customers by Spend" data={analyticsData.top_customers} icon={Trophy} valueLabel="spend" />
-            <TopCustomerList title="Top Customers by Sales" data={analyticsData.top_customers} icon={ShoppingBag} valueLabel="orders" />
+            <TopCustomerList title="Top Customers by Spend" data={topCustomersBySpendData} icon={Trophy} valueLabel="spend" />
+            <TopCustomerList title="Top Customers by Sales" data={topCustomersByOrdersData} icon={ShoppingBag} valueLabel="orders" />
         </div>
 
         <Card>
@@ -292,5 +295,3 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
     </div>
   );
 }
-
-    

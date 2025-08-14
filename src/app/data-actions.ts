@@ -46,10 +46,10 @@ import {
     getGrossMarginAnalysisFromDB,
     createPurchaseOrdersFromSuggestionsInDb,
     logUserFeedbackInDb as logUserFeedbackInDbService,
-    getDashboardMetrics,
     getInventoryAnalyticsFromDB,
     refreshMaterializedViews,
     getHistoricalSalesForSkus,
+    getDashboardMetrics,
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
 import type { DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, ReorderSuggestion, Message, Conversation, Customer, SalesAnalytics, CustomerAnalytics, Supplier, SupplierFormData } from '@/types';
@@ -121,7 +121,16 @@ export async function createSupplier(formData: FormData) {
     try {
         const { companyId } = await getAuthContext();
         await validateCSRF(formData);
-        const data = SupplierFormSchema.parse(Object.fromEntries(formData.entries()));
+        const data = z.object({
+            name: z.string().min(2, "Supplier name must be at least 2 characters."),
+            email: z.string().email("Invalid email address.").or(z.literal('')).nullable().optional(),
+            phone: z.string().optional().nullable(),
+            default_lead_time_days: z.preprocess(
+                v => (v === '' || v == null ? null : v),
+                z.coerce.number().int().nonnegative().nullable()
+            ),
+            notes: z.string().optional().nullable(),
+        }).parse(Object.fromEntries(formData.entries()));
         await createSupplierInDb(companyId, data);
         revalidatePath('/suppliers');
         return { success: true };
@@ -134,7 +143,16 @@ export async function updateSupplier(id: string, formData: FormData) {
     try {
         const { companyId } = await getAuthContext();
         await validateCSRF(formData);
-        const data = SupplierFormSchema.parse(Object.fromEntries(formData.entries()));
+        const data = z.object({
+            name: z.string().min(2, "Supplier name must be at least 2 characters."),
+            email: z.string().email("Invalid email address.").or(z.literal('')).nullable().optional(),
+            phone: z.string().optional().nullable(),
+            default_lead_time_days: z.preprocess(
+                v => (v === '' || v == null ? null : v),
+                z.coerce.number().int().nonnegative().nullable()
+            ),
+            notes: z.string().optional().nullable(),
+        }).parse(Object.fromEntries(formData.entries()));
         await updateSupplierInDb(id, companyId, data);
         revalidatePath('/suppliers');
         return { success: true };

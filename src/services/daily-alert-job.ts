@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -52,7 +51,7 @@ async function processCompanyAlerts(companyId: string, companyName: string) {
       if (error) throw error;
       if (!users || users.length === 0) return;
 
-      const userEmails = users.map(u => (u.users as { email: string }).email);
+      const userEmails = users.map(u => (u.users as { email: string })?.email).filter(Boolean);
 
       // Generate alerts and briefing
       const alerts = await getAlertsWithStatus(companyId);

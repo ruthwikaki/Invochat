@@ -54,7 +54,7 @@ export default async function IntegrationsPage() {
                         <IntegrationsClientPage />
                     </Suspense>
                 </HydrationBoundary>
-                <ImportHistoryCard initialHistory={(importHistory || []) as any[]} />
+                <ImportHistoryCard initialHistory={(importHistory || []) as ImportJob[]} />
             </div>
         </AppPage>
     )

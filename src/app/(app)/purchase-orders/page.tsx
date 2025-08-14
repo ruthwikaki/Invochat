@@ -27,7 +27,7 @@ export default async function PurchaseOrdersPage() {
             <div className="mt-6">
                 <PurchaseOrdersClientPage 
                     initialPurchaseOrders={purchaseOrders as PurchaseOrderWithItemsAndSupplier[]}
-                    suppliers={suppliers}
+                    suppliers={suppliers as Supplier[]}
                 />
             </div>
         </AppPage>

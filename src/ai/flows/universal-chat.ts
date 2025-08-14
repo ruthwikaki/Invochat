@@ -27,7 +27,7 @@ import { getProductDemandForecast } from './product-demand-forecast-flow';
 import { getDemandForecast, getAbcAnalysis, getGrossMarginAnalysis, getNetMarginByChannel, getMarginTrends, getSalesVelocity, getPromotionalImpactAnalysis } from './analytics-tools';
 import { logError, getErrorMessage } from '@/lib/error-handler';
 import crypto from 'crypto';
-import type { GenerateOptions, GenerateResponse, MessageData, Tool, ToolArgument } from 'genkit';
+import type { GenerateOptions, GenerateResponse, MessageData, Tool, ToolArgument, ToolRequestPart } from 'genkit';
 import type { ZodTypeAny } from 'zod';
 
 // These are the tools that are safe and fully implemented for the AI to use.
@@ -171,9 +171,11 @@ export const universalChatFlow = ai.defineFlow(
         });
         
         let finalResponse: UniversalChatOutput;
-        const toolRequest = response.toolRequests[0];
+        const toolRequestPart = response.candidates[0].message.content.find(part => !!part.toolRequest) as ToolRequestPart | undefined;
 
-        if (toolRequest) {
+
+        if (toolRequestPart) {
+            const toolRequest = toolRequestPart.toolRequest;
             const toolName = toolRequest.name;
             const toolResponseData = toolRequest.input;
 
