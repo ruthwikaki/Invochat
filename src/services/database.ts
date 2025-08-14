@@ -1,14 +1,14 @@
 
+
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, Integration } from '@/types';
-import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, SupplierPerformanceReportSchema, ReorderSuggestionSchema, SalesAnalyticsSchema, InventoryAnalyticsSchema } from '@/types';
+import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, SupplierPerformanceReportSchema, ReorderSuggestionSchema, SalesAnalyticsSchema, InventoryAnalyticsSchema, PurchaseOrderWithItemsAndSupplierSchema, DashboardMetricsSchema } from '@/types';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import type { Json } from '@/types/database.types';
 import { logger } from '@/lib/logger';
-import { revalidatePath } from 'next/cache';
 import { invalidateCompanyCache } from '@/lib/redis';
 
 
@@ -132,8 +132,8 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
             .eq('company_id', companyId);
 
         if (validatedParams.query) {
-            const searchTerm = validatedParams.query.replace(/[%_]/g, '\\$&');
-            query = query.or(`product_title.ilike.%${searchTerm}%,sku.ilike.%${searchTerm}%`);
+             const searchTerm = validatedParams.query.trim().replace(/ /g, ' & ');
+             query = query.textSearch('fts', searchTerm, {type: 'websearch'});
         }
         
         if (validatedParams.status && validatedParams.status !== 'all') {
@@ -189,6 +189,45 @@ export async function getInventoryLedgerFromDB(companyId: string, variantId: str
         return data || [];
     } catch (error) {
         logError(error, { context: 'getInventoryLedgerFromDB unexpected error', companyId, variantId });
+        throw error;
+    }
+}
+
+export async function getDashboardMetrics(companyId: string, period: string | number) {
+    const days = typeof period === 'number' ? period : parseInt(String(period).replace(/\D/g, ''), 10);
+    const supabase = getServiceRoleClient();
+    try {
+        const { data, error } = await supabase.rpc('get_dashboard_metrics', { p_company_id: companyId, p_days: days });
+        if (error) {
+            logError(error, { context: 'get_dashboard_metrics failed', companyId, period });
+            throw new Error('Could not retrieve dashboard metrics from the database.');
+        }
+        if (data == null) {
+            logger.warn('[RPC Error] get_dashboard_metrics returned null. This can happen with no data.');
+            throw new Error('No response from get_dashboard_metrics RPC call.');
+        }
+        return DashboardMetricsSchema.parse(data);
+    } catch (e) {
+        logError(e, { context: 'getDashboardMetrics failed', companyId, period });
+        throw new Error('Could not retrieve dashboard metrics from the database.');
+    }
+}
+
+
+export async function getInventoryAnalyticsFromDB(companyId: string): Promise<InventoryAnalytics> {
+    if (!z.string().uuid().safeParse(companyId).success) {
+        throw new Error('Invalid company ID format');
+    }
+    try {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('get_inventory_analytics', { p_company_id: companyId });
+        if (error) {
+            logError(error, { context: 'getInventoryAnalyticsFromDB failed', companyId });
+            throw new Error('Failed to retrieve inventory analytics');
+        }
+        return InventoryAnalyticsSchema.parse(data);
+    } catch (error) {
+        logError(error, { context: 'getInventoryAnalyticsFromDB unexpected error', companyId });
         throw error;
     }
 }
@@ -287,7 +326,7 @@ export async function getCustomersFromDB(companyId: string, params: { query?: st
     let query = supabase.from('customers').select(`
         id,
         company_id,
-        name,
+        customer_name,
         email,
         total_orders,
         total_spent,
@@ -321,7 +360,7 @@ export async function deleteCustomerFromDb(customerId: string, companyId: string
     }
 }
 
-export async function getSalesFromDB(companyId: string, params: { query?: string; offset: number, limit: number }): Promise<{ items: any[], totalCount: number }> {
+export async function getSalesFromDB(companyId: string, params: { query?: string; offset: number, limit: number }) {
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const validatedParams = DatabaseQueryParamsSchema.parse(params);
     try {
@@ -341,7 +380,7 @@ export async function getSalesFromDB(companyId: string, params: { query?: string
     }
 }
 
-export async function getSalesAnalyticsFromDB(companyId: string): Promise<SalesAnalytics> {
+export async function getSalesAnalyticsFromDB(companyId: string) {
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_sales_analytics' as any, { p_company_id: companyId });
@@ -824,17 +863,23 @@ export async function getFeedbackFromDB(companyId: string, params: { query?: str
         throw new Error('Failed to retrieve feedback data.');
     }
 }
+
 export async function createPurchaseOrdersFromSuggestionsInDb(companyId: string, userId: string, suggestions: ReorderSuggestion[]) {
+    if (!z.string().uuid().safeParse(companyId).success || !z.string().uuid().safeParse(userId).success) {
+        throw new Error('Invalid ID format');
+    }
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('create_purchase_orders_from_suggestions', {
         p_company_id: companyId,
         p_user_id: userId,
         p_suggestions: suggestions as unknown as Json,
     });
+
     if (error) {
-        logError(error, { context: 'createPurchaseOrdersFromSuggestionsInDb RPC failed' });
-        throw new Error('Could not create purchase orders from suggestions.');
+        logError(error, { context: 'Failed to execute create_purchase_orders_from_suggestions RPC' });
+        throw new Error('Database error while creating purchase orders from suggestions.');
     }
+    
     return data;
 }
 
@@ -850,5 +895,17 @@ export async function logUserFeedbackInDb(userId: string, companyId: string, sub
 
     if (error) {
         logError(error, { context: 'Failed to log user feedback' });
+    }
+}
+
+export async function refreshMaterializedViews(companyId: string) {
+    if (!z.string().uuid().safeParse(companyId).success) return;
+    logger.info(`[DB] Refreshing materialized views for company ${companyId}`);
+    const supabase = getServiceRoleClient();
+    const { error } = await supabase.rpc('refresh_all_matviews', { p_company_id: companyId });
+    if(error) {
+        logError(error, { context: 'Failed to refresh materialized views', companyId });
+    } else {
+        logger.info(`[DB] Successfully refreshed materialized views for company ${companyId}`);
     }
 }
