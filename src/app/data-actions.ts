@@ -50,6 +50,7 @@ import {
     getInventoryAnalyticsFromDB,
     refreshMaterializedViews,
     getHistoricalSalesForSingleSkuFromDB,
+    getServiceRoleClient,
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
 import type { DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, Message, Conversation, SalesAnalytics, CustomerAnalytics, SupplierFormData, ReorderSuggestion } from '@/types';
@@ -752,5 +753,7 @@ export async function refreshData() {
     await checkUserPermission(userId, 'Member');
     await refreshMaterializedViews(companyId);
 }
+
+    
 
     
