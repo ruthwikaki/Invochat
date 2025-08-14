@@ -35,10 +35,10 @@ const suggestPricesPrompt = ai.definePrompt({
       products: z.array(z.object({
           sku: z.string(),
           name: z.string(),
-          cost: z.number(), // cost is now mandatory
-          price: z.number(), // price is now mandatory
+          cost: z.number(),
+          price: z.number(),
           inventory_quantity: z.number(),
-          sales_last_30_days: z.number(), // Added for better context
+          sales_last_30_days: z.number(),
       })),
     }),
   },

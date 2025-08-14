@@ -27,7 +27,7 @@ import { getProductDemandForecast } from './product-demand-forecast-flow';
 import { getDemandForecast, getAbcAnalysis, getGrossMarginAnalysis, getNetMarginByChannel, getMarginTrends, getSalesVelocity, getPromotionalImpactAnalysis } from './analytics-tools';
 import { logError, getErrorMessage } from '@/lib/error-handler';
 import crypto from 'crypto';
-import type { GenerateOptions, GenerateResponse, MessageData, ToolArgument, ToolRequestPart } from 'genkit';
+import type { GenerateOptions, GenerateResponse, MessageData, ToolArgument } from 'genkit';
 
 // These are the tools that are safe and fully implemented for the AI to use.
 const safeToolsForOrchestrator: ToolArgument[] = [
