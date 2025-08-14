@@ -27,7 +27,7 @@ import { getProductDemandForecast } from './product-demand-forecast-flow';
 import { getDemandForecast, getAbcAnalysis, getGrossMarginAnalysis, getNetMarginByChannel, getMarginTrends, getSalesVelocity, getPromotionalImpactAnalysis } from './analytics-tools';
 import { logError, getErrorMessage } from '@/lib/error-handler';
 import crypto from 'crypto';
-import type { GenerateOptions, GenerateResponse, MessageData } from 'genkit';
+import type { GenerateOptions, GenerateResponse, MessageData, ToolRequestPart } from 'genkit';
 
 // These are the tools that are safe and fully implemented for the AI to use.
 const safeToolsForOrchestrator = [
@@ -161,9 +161,9 @@ export const universalChatFlow = ai.defineFlow(
         }));
         
         const response = await generateWithRetry({
+            model: config.ai.model as any,
             tools: safeToolsForOrchestrator as any,
             messages: genkitHistory,
-            model: config.ai.model as any,
             config: {
                 temperature: 0.2, // Slightly more creative for better synthesis
                 maxOutputTokens: config.ai.maxOutputTokens,
@@ -257,3 +257,5 @@ export const universalChatFlow = ai.defineFlow(
     }
   }
 );
+
+    

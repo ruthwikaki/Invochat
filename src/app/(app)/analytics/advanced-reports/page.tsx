@@ -2,7 +2,6 @@
 import { AppPage, AppPageHeader } from "@/components/ui/page";
 import { getAdvancedAbcReport, getAdvancedSalesVelocityReport, getAdvancedGrossMarginReport } from "@/app/data-actions";
 import { AdvancedReportsClientPage, type SalesVelocityItem, type GrossMarginItem, type AbcAnalysisItem } from "./advanced-reports-client-page";
-import type { Json } from "@/types/database.types";
 
 export const dynamic = 'force-dynamic';
 
@@ -30,3 +29,5 @@ export default async function AdvancedReportsPage() {
         </AppPage>
     );
 }
+
+    

@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { QueryClient, HydrationBoundary, dehydrate } from '@tanstack/react-query';
 import { getIntegrations, getImportHistory } from "@/app/data-actions";
 import { ImportHistoryCard } from "@/features/integrations/components/ImportHistoryCard";
+import type { ImportJob } from "@/types";
 
 function IntegrationsLoadingSkeleton() {
     return (
@@ -53,9 +54,10 @@ export default async function IntegrationsPage() {
                         <IntegrationsClientPage />
                     </Suspense>
                 </HydrationBoundary>
-                <ImportHistoryCard initialHistory={importHistory || []} />
+                <ImportHistoryCard initialHistory={(importHistory || []) as ImportJob[]} />
             </div>
         </AppPage>
     )
 }
+
     

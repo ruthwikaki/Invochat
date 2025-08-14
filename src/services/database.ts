@@ -1,10 +1,9 @@
 
-
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderWithItemsAndSupplier, Order, DashboardMetrics, ReorderSuggestion } from '@/types';
-import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, SupplierPerformanceReportSchema, ReorderSuggestionSchema } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, Integration, PurchaseOrderWithItemsAndSupplier, ReorderSuggestion } from '@/types';
+import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, SupplierPerformanceReportSchema, ReorderSuggestionSchema } from '@/types';
 import { isRedisEnabled, redisClient, invalidateCompanyCache } from '@/lib/redis';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
@@ -12,6 +11,7 @@ import type { Json } from '@/types/database.types';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
 import { revalidatePath } from 'next/cache';
+import { createServerClient } from '@/lib/supabase/admin';
 
 
 // --- Input Validation Schemas ---
@@ -313,7 +313,7 @@ export async function deleteCustomerFromDb(customerId: string, companyId: string
     }
 }
 
-export async function getSalesFromDB(companyId: string, params: { query?: string; offset: number, limit: number }) {
+export async function getSalesFromDB(companyId: string, params: { query?: string; offset: number, limit: number }): Promise<{ items: any[], totalCount: number }> {
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const validatedParams = DatabaseQueryParamsSchema.parse(params);
     try {
@@ -331,28 +331,6 @@ export async function getSalesFromDB(companyId: string, params: { query?: string
         logError(e, { context: 'getSalesFromDB failed' });
         throw new Error('Failed to retrieve sales data.');
     }
-}
-
-export async function getSalesAnalyticsFromDB(companyId: string) {
-    if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
-    const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_sales_analytics' as any, { p_company_id: companyId });
-    if (error) {
-        logError(error, { context: 'getSalesAnalyticsFromDB failed' });
-        throw error;
-    }
-    return data;
-}
-
-export async function getCustomerAnalyticsFromDB(companyId: string) {
-    if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
-    const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_customer_analytics', { p_company_id: companyId });
-    if(error) {
-        logError(error, { context: 'getCustomerAnalyticsFromDB failed' });
-        throw error;
-    }
-    return CustomerAnalyticsSchema.parse(data);
 }
 
 export async function getDeadStockReportFromDB(companyId: string): Promise<{ deadStockItems: z.infer<typeof DeadStockItemSchema>[], totalValue: number, totalUnits: number }> {
@@ -528,6 +506,20 @@ export async function createAuditLogInDb(companyId: string, userId: string | nul
     }
 }
 
+export async function logUserFeedbackInDb(userId: string, companyId: string, subjectId: string, subjectType: string, feedback: 'helpful' | 'unhelpful') {
+    const supabase = getServiceRoleClient();
+    const { error } = await supabase.from('feedback').insert({
+        user_id: userId,
+        company_id: companyId,
+        subject_id: subjectId,
+        subject_type: subjectType,
+        feedback: feedback,
+    });
+
+    if (error) {
+        logError(error, { context: 'Failed to log user feedback' });
+    }
+}
 export async function createExportJobInDb(companyId: string, userId: string) { 
     if (!z.string().uuid().safeParse(companyId).success || !z.string().uuid().safeParse(userId).success) throw new Error('Invalid ID format');
     const supabase = getServiceRoleClient();
@@ -574,7 +566,7 @@ export async function createPurchaseOrderInDb(companyId: string, userId: string,
         p_supplier_id: poData.supplier_id,
         p_status: poData.status,
         p_notes: poData.notes || '',
-        p_expected_arrival: poData.expected_arrival_date?.toISOString() || '',
+        p_expected_arrival: poData.expected_arrival_date?.toISOString() || null,
         p_line_items: poData.line_items as any,
     }).select('id').single();
 
@@ -598,7 +590,7 @@ export async function updatePurchaseOrderInDb(poId: string, companyId: string, u
         p_supplier_id: poData.supplier_id,
         p_status: poData.status,
         p_notes: poData.notes || '',
-        p_expected_arrival: poData.expected_arrival_date?.toISOString() || '',
+        p_expected_arrival: poData.expected_arrival_date?.toISOString() || null,
         p_line_items: poData.line_items as any,
     });
 
@@ -836,20 +828,16 @@ export async function createPurchaseOrdersFromSuggestionsInDb(companyId: string,
     return data;
 }
 
-export async function logUserFeedbackInDb(userId: string, companyId: string, subjectId: string, subjectType: string, feedback: 'helpful' | 'unhelpful') {
+export async function refreshMaterializedViews(companyId: string): Promise<void> {
     const supabase = getServiceRoleClient();
-    const { error } = await supabase.from('feedback').insert({
-        user_id: userId,
-        company_id: companyId,
-        subject_id: subjectId,
-        subject_type: subjectType,
-        feedback: feedback,
-    });
+    // This function now refreshes all materialized views relevant to a company.
+    // It's a fire-and-forget operation from the client's perspective.
+    const { error } = await supabase.rpc('refresh_all_matviews', { p_company_id: companyId });
 
     if (error) {
-        logError(error, { context: 'Failed to log user feedback' });
+        logError(error, { context: 'refreshMaterializedViews failed', companyId });
+        // We don't throw here to avoid breaking UI flows, but we log the error.
     }
 }
-export async function getDashboardMetricsFromDb(companyId: string, dateRange: string) {
-    throw new Error('Function not implemented.');
-}
+
+    

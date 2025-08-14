@@ -1,12 +1,11 @@
 
-
 import { z } from 'zod';
 import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema, HealthCheckResultSchema } from './ai-schemas';
 import {
   EnhancedReorderSuggestionSchema,
   type ReorderSuggestionBase,
 } from '@/schemas/reorder';
-import { SupplierSchema, SupplierFormSchema } from '@/schemas/suppliers';
+import { SupplierSchema, SupplierFormSchema as SupplierFormSchemaImport } from '@/schemas/suppliers';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 export const UserSchema = z.custom<SupabaseUser>();
@@ -402,22 +401,23 @@ export const InventoryAnalyticsSchema = z.object({
 }).passthrough();
 export type InventoryAnalytics = z.infer<typeof InventoryAnalyticsSchema>;
 
-export const CustomerAnalyticsSchema = z.object({
-    total_customers: z.number().int(),
-    new_customers_last_30_days: z.number().int(),
-    repeat_customer_rate: z.number(),
-    average_lifetime_value: z.number().int(),
-    top_customers_by_spend: z.array(z.object({
-        name: z.string().nullable(),
-        value: z.number().int()
-    })),
-    top_customers_by_sales: z.array(z.object({
-        name: z.string().nullable(),
-        value: z.number().int()
-    })),
-}).passthrough();
-export type CustomerAnalytics = z.infer<typeof CustomerAnalyticsSchema>;
-
+export interface CustomerAnalytics {
+    total_customers: number;
+    new_customers_30d: number;
+    returning_customers: number;
+    average_order_value: number;
+    customer_lifetime_value: number;
+    top_customers: Array<{
+        customer_id: string;
+        name: string | null;
+        value: number;
+    }>;
+    customer_segments: Array<{
+        segment: string;
+        count: number;
+        revenue: number;
+    }>;
+}
 
 export { HealthCheckResultSchema };
 export type HealthCheckResult = z.infer<typeof HealthCheckResultSchema>;
@@ -541,3 +541,7 @@ export const ImportJobSchema = z.object({
   failed_rows: z.number().nullable(),
 });
 export type ImportJob = z.infer<typeof ImportJobSchema>;
+
+export const SupplierFormSchema = SupplierFormSchemaImport;
+
+    

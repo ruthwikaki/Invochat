@@ -190,7 +190,7 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
             <AnalyticsCard data-testid="total-customers-card" title="Total Customers" value={analyticsData.total_customers.toLocaleString()} icon={Users} />
             <AnalyticsCard title="Avg. Lifetime Value" value={formatCentsAsCurrency(analyticsData.customer_lifetime_value)} icon={DollarSign} />
             <AnalyticsCard title="New Customers (30d)" value={analyticsData.new_customers_30d.toLocaleString()} icon={UserPlus} />
-            <AnalyticsCard title="Repeat Customer Rate" value={`${(analyticsData.returning_customers * 100).toFixed(1)}%`} icon={Repeat} />
+            <AnalyticsCard title="Repeat Customer Rate" value={`${(analyticsData.returning_customers).toFixed(1)}%`} icon={Repeat} />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -291,3 +291,5 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
     </div>
   );
 }
+
+    
