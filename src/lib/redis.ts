@@ -217,7 +217,7 @@ export async function rateLimit(
         return { limited: isLimited, remaining };
     } catch (error) {
         logger.error(`[Redis] Rate limiting failed for action "${action}". Failing ${failClosed ? 'closed' : 'open'}.`, error);
-        // If Redis fails, fail open or closed based on the flag. This is a critical design choice.
+        // If Redis fails, fail closed for security on most actions.
         return { limited: failClosed, remaining: failClosed ? 0 : limit };
     }
 }

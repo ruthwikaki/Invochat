@@ -4,20 +4,21 @@
  */
 import { config as dotenvConfig } from 'dotenv';
 import { z } from 'zod';
+import { logger } from '@/lib/logger';
 
 // Force load .env variables at the earliest point.
 dotenvConfig();
 
-// More lenient validation for development
+// Strict schema for production, lenient for development
 const EnvSchema = z.object({
   NEXT_PUBLIC_SITE_URL: z.string().url().optional().default('http://localhost:3000'),
   NEXT_PUBLIC_SUPABASE_URL: z.string().url({ message: "Must be a valid URL." }),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1, { message: "Is not set." }),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, { message: "Is not set. This is required for server-side database operations." }),
-  GOOGLE_API_KEY: z.string().optional(), // Make optional for initial setup
+  GOOGLE_API_KEY: z.string().min(1, { message: "Google AI API Key is required for core functionality." }),
   REDIS_URL: z.string().optional(),
-  ENCRYPTION_KEY: z.string().optional().default('0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'),
-  ENCRYPTION_IV: z.string().optional().default('0123456789abcdef0123456789abcdef'),
+  ENCRYPTION_KEY: z.string().length(64, { message: "ENCRYPTION_KEY must be a 64-character hex string (32 bytes)." }),
+  ENCRYPTION_IV: z.string().length(32, { message: "ENCRYPTION_IV must be a 32-character hex string (16 bytes)." }),
   HEALTH_CHECK_API_KEY: z.string().optional(),
   SHOPIFY_WEBHOOK_SECRET: z.string().optional(),
   WOOCOMMERCE_WEBHOOK_SECRET: z.string().optional(),
@@ -30,9 +31,13 @@ const EnvSchema = z.object({
 // Export the result with better error handling
 export const envValidation = EnvSchema.safeParse(process.env);
 
-// Log validation errors in development
-if (!envValidation.success && process.env.NODE_ENV === 'development') {
-  console.warn('Environment validation warnings:', envValidation.error.flatten().fieldErrors);
+// Fail hard in production, warn in development
+if (!envValidation.success) {
+  const errorMessage = 'CRITICAL: Environment validation failed.';
+  logger.error(errorMessage, envValidation.error.flatten().fieldErrors);
+  if (process.env.NODE_ENV === 'production') {
+      throw new Error(errorMessage);
+  }
 }
 
 // Rest of your config remains the same...
