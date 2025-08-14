@@ -45,12 +45,12 @@ import {
     getGrossMarginAnalysisFromDB,
     createPurchaseOrdersFromSuggestionsInDb,
     logUserFeedbackInDb as logUserFeedbackInDbService,
-    getHistoricalSalesForSkus,
+    getHistoricalSalesForSingleSkuFromDB,
     getDashboardMetrics,
     getInventoryAnalyticsFromDB
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
-import type { DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, ReorderSuggestion, Message, Conversation, SalesAnalytics, CustomerAnalytics, Supplier, SupplierFormData } from '@/types';
+import type { DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, ReorderSuggestion, Message, Conversation, SalesAnalytics, CustomerAnalytics, SupplierFormData } from '@/types';
 import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { universalChatFlow } from '@/ai/flows/universal-chat';

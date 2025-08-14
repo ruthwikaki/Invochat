@@ -2,11 +2,25 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, AuditLogEntry, FeedbackWithMessages, ReorderSuggestion, PurchaseOrderWithItemsAndSupplier, PurchaseOrderFormData, ChannelFee, Integration, SalesAnalytics, CustomerAnalytics, Order, DashboardMetrics, InventoryAnalytics } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, Order, DashboardMetrics, PurchaseOrderFormData, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, AuditLogEntry, FeedbackWithMessages, ReorderSuggestion, PurchaseOrderWithItemsAndSupplier } from '@/types';
 import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, SupplierPerformanceReportSchema, ReorderSuggestionSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, InventoryAnalyticsSchema, SupplierFormSchema, DashboardMetricsSchema } from '@/types';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import type { Json } from '@/types/database.types';
+import { logger } from '@/lib/logger';
+import { invalidateCompanyCache } from '@/lib/redis';
+import { refreshMaterializedViews } from '@/services/database';
+
+// --- Input Validation Schemas ---
+const DatabaseQueryParamsSchema = z.object({
+  query: z.string().optional(),
+  page: z.number().min(1).max(1000).optional(),
+  limit: z.number().min(1).max(100).optional(),
+  offset: z.number().min(0).max(10000).optional(),
+  status: z.string().optional(),
+  sortBy: z.string().max(50).optional(),
+  sortDirection: z.enum(['asc', 'desc']).optional()
+});
 
 // --- Authorization Helper ---
 /**
@@ -96,6 +110,7 @@ export async function updateSettingsInDb(companyId: string, settings: Partial<Co
             return { success: false, error: "Unable to save settings. Please try again." };
         }
         
+        await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
         return { success: true };
     } catch (error) {
         logError(error, { context: 'updateSettingsInDb unexpected error', companyId });
@@ -108,15 +123,7 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
         throw new Error('Invalid company ID format');
     }
     
-    const validatedParams = z.object({
-      query: z.string().optional(),
-      page: z.number().min(1).max(1000).optional(),
-      limit: z.number().min(1).max(100).optional(),
-      offset: z.number().min(0).max(10000).optional(),
-      status: z.string().optional(),
-      sortBy: z.string().max(50).optional(),
-      sortDirection: z.enum(['asc', 'desc']).optional()
-    }).parse(params);
+    const validatedParams = DatabaseQueryParamsSchema.parse(params);
     const supabase = getServiceRoleClient();
     
     try {
@@ -308,11 +315,7 @@ export async function deleteCustomerFromDb(customerId: string, companyId: string
 
 export async function getSalesFromDB(companyId: string, params: { query?: string; offset: number, limit: number }): Promise<{ items: Order[], totalCount: number }> {
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
-    const validatedParams = z.object({
-      query: z.string().optional(),
-      offset: z.number().int(),
-      limit: z.number().int()
-    }).parse(params);
+    const validatedParams = DatabaseQueryParamsSchema.parse(params);
     try {
         const supabase = getServiceRoleClient();
         let query = supabase.from('orders_view').select('*', { count: 'exact' }).eq('company_id', companyId);
@@ -389,7 +392,12 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
             throw error;
         }
 
-        const suggestions = z.array(ReorderSuggestionSchema).parse(data || []);
+        const suggestions = z.array(ReorderSuggestionSchema.omit({
+            base_quantity: true,
+            adjustment_reason: true,
+            seasonality_factor: true,
+            confidence: true,
+        })).parse(data || []);
 
         return suggestions.map(s => {
             if (s.suggested_reorder_quantity > 10000) {

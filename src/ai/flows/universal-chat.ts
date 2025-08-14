@@ -27,11 +27,11 @@ import { getProductDemandForecast } from './product-demand-forecast-flow';
 import { getDemandForecast, getAbcAnalysis, getGrossMarginAnalysis, getNetMarginByChannel, getMarginTrends, getSalesVelocity, getPromotionalImpactAnalysis } from './analytics-tools';
 import { logError, getErrorMessage } from '@/lib/error-handler';
 import crypto from 'crypto';
-import type { GenerateOptions, GenerateResponse, MessageData, Tool, ToolArgument, ToolRequestPart } from 'genkit';
+import type { GenerateOptions, GenerateResponse, MessageData, ToolRequestPart, ToolArgument } from 'genkit';
 import type { ZodTypeAny } from 'zod';
 
 // These are the tools that are safe and fully implemented for the AI to use.
-const safeToolsForOrchestrator = [
+const safeToolsForOrchestrator: ToolArgument[] = [
     getReorderSuggestions,
     getDeadStockReport,
     getInventoryTurnoverReport,
@@ -162,7 +162,7 @@ export const universalChatFlow = ai.defineFlow(
         }));
         
         const response = await generateWithRetry({
-            tools: safeToolsForOrchestrator as ToolArgument[],
+            tools: safeToolsForOrchestrator,
             messages: genkitHistory,
             config: {
                 temperature: 0.2, // Slightly more creative for better synthesis

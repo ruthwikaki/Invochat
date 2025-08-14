@@ -7,7 +7,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { getHistoricalSalesForSkus } from '@/services/database';
+import { getHistoricalSalesForSingleSkuFromDB } from '@/services/database';
 import { logError } from '@/lib/error-handler';
 import { linearRegression } from '@/lib/utils';
 import { differenceInDays } from 'date-fns';
@@ -78,10 +78,9 @@ export const productDemandForecastFlow = ai.defineFlow(
   },
   async ({ companyId, sku, daysToForecast }): Promise<z.infer<typeof ForecastOutputSchema>> => {
     try {
-      const historicalData = await getHistoricalSalesForSkus(companyId, [sku]);
-      const salesData = (historicalData[0] as any)?.monthly_sales || [];
-
-      if (salesData.length < 5) {
+      const historicalData = await getHistoricalSalesForSingleSkuFromDB(companyId, sku);
+      
+      if (historicalData.length < 5) {
         return {
           sku,
           forecastedDemand: 0,
@@ -91,8 +90,8 @@ export const productDemandForecastFlow = ai.defineFlow(
         };
       }
 
-      const firstDay = new Date(salesData[0].sale_date);
-      const dataForRegression = salesData.map((d: { sale_date: string; total_quantity: number }) => ({
+      const firstDay = new Date(historicalData[0].sale_date);
+      const dataForRegression = historicalData.map((d: { sale_date: string; total_quantity: number }) => ({
         x: differenceInDays(new Date(d.sale_date), firstDay),
         y: d.total_quantity,
       }));
@@ -115,7 +114,7 @@ export const productDemandForecastFlow = ai.defineFlow(
         daysToForecast,
         slope,
         intercept,
-        dataPointCount: salesData.length,
+        dataPointCount: historicalData.length,
         forecastedDemand: roundedForecast,
       }, { model: config.ai.model });
 

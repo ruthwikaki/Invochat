@@ -4,7 +4,7 @@ import { PurchaseOrdersClientPage } from "./purchase-orders-client-page";
 import { getPurchaseOrders, getSuppliersData } from "@/app/data-actions";
 import { Button } from "@/components/ui/button";
 import Link from 'next/link';
-import type { PurchaseOrderWithItemsAndSupplier, Supplier } from "@/types";
+import type { PurchaseOrderWithItemsAndSupplier } from "@/types";
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +27,7 @@ export default async function PurchaseOrdersPage() {
             <div className="mt-6">
                 <PurchaseOrdersClientPage 
                     initialPurchaseOrders={purchaseOrders as PurchaseOrderWithItemsAndSupplier[]}
-                    suppliers={suppliers as Supplier[]}
+                    suppliers={suppliers}
                 />
             </div>
         </AppPage>

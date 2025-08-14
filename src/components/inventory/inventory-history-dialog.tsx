@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { getInventoryLedger } from '@/app/data-actions';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -109,5 +110,3 @@ export function InventoryHistoryDialog({ variant, onClose }: InventoryHistoryDia
     </Dialog>
   );
 }
-
-    
