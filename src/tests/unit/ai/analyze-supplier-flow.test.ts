@@ -54,6 +54,7 @@ describe('Analyze Supplier Flow', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // This creates the mock function that the lazy-loaded prompt will use.
     mockPromptFn = vi.fn();
     (ai.definePrompt as vi.Mock).mockReturnValue(mockPromptFn);
   });
@@ -61,6 +62,7 @@ describe('Analyze Supplier Flow', () => {
   it('should fetch supplier performance data and generate an analysis', async () => {
     (database.getSupplierPerformanceFromDB as vi.Mock).mockResolvedValue(mockPerformanceData);
 
+    // Set the successful return value for this test
     mockPromptFn.mockResolvedValue({
       output: {
         analysis: "Mock supplier analysis",
@@ -93,8 +95,8 @@ describe('Analyze Supplier Flow', () => {
   it('should throw an error if the AI analysis fails', async () => {
     (database.getSupplierPerformanceFromDB as vi.Mock).mockResolvedValue(mockPerformanceData);
     
-    // Override the mock for this specific test
-    mockPromptFn.mockResolvedValue({ output: null });
+    // Override the mock specifically for this test to return a null output
+    mockPromptFn.mockResolvedValueOnce({ output: null });
 
     const input = { companyId: 'test-company-id' };
 

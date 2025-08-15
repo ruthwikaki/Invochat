@@ -1,6 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('@/lib/redis');
+// Fix: Mock the isRedisEnabled export as well
+vi.mock('@/lib/redis', () => ({
+  isRedisEnabled: false,
+  redisClient: {
+    get: vi.fn(),
+    set: vi.fn()
+  }
+}));
+
 vi.mock('@/lib/error-handler', () => ({
   logError: vi.fn(),
   getErrorMessage: vi.fn(e => (e as Error)?.message || String(e) || ''),
@@ -46,7 +54,7 @@ vi.mock('@/ai/genkit', () => {
 import { universalChatFlow } from '@/ai/flows/universal-chat';
 import * as redis from '@/lib/redis';
 import { ai } from '@/ai/genkit';
-import { getErrorMessage } from '@/lib/error-handler';
+import crypto from 'crypto';
 
 const mockUserQuery = 'What should I reorder?';
 const mockCompanyId = 'test-company-id';
@@ -65,13 +73,14 @@ const mockFinalResponse = {
 };
 
 describe('Universal Chat Flow', () => {
-    let mockPromptFn: any;
+    let mockFinalResponsePromptFn: any;
 
     beforeEach(() => {
         vi.clearAllMocks();
         vi.spyOn(redis, 'isRedisEnabled', 'get').mockReturnValue(false);
-        mockPromptFn = vi.fn();
-        (ai.definePrompt as any).mockReturnValue(mockPromptFn);
+        // The universal chat flow defines ONE prompt. This mock will be used by it.
+        mockFinalResponsePromptFn = vi.fn();
+        (ai.definePrompt as any).mockReturnValue(mockFinalResponsePromptFn);
     });
 
     it('should call a tool and format the final response', async () => {
@@ -80,13 +89,13 @@ describe('Universal Chat Flow', () => {
             text: ''
         });
         
-        mockPromptFn.mockResolvedValue({ output: mockFinalResponse });
+        mockFinalResponsePromptFn.mockResolvedValue({ output: mockFinalResponse });
 
         const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory as any };
         const result = await universalChatFlow(input);
 
         expect(ai.generate).toHaveBeenCalledWith(expect.anything());
-        expect(mockPromptFn).toHaveBeenCalled();
+        expect(mockFinalResponsePromptFn).toHaveBeenCalled();
         expect(result.toolName).toBe('getReorderSuggestions');
         expect(result.response).toContain('You should reorder these items.');
     });
@@ -97,12 +106,12 @@ describe('Universal Chat Flow', () => {
             toolRequests: [],
         });
         
-        mockPromptFn.mockResolvedValue({ output: { response: "I cannot help with that." } });
+        mockFinalResponsePromptFn.mockResolvedValue({ output: { response: "I cannot help with that." } });
 
         const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory as any };
         await universalChatFlow(input);
         
-        expect(mockPromptFn).toHaveBeenCalledWith(
+        expect(mockFinalResponsePromptFn).toHaveBeenCalledWith(
             expect.objectContaining({ userQuery: mockUserQuery, toolResult: 'I cannot help with that.' }),
             expect.anything()
         );
