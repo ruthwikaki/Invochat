@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@/lib/redis');
@@ -39,7 +38,6 @@ vi.mock('@/ai/genkit', () => {
   return {
     ai: {
       defineFlow: vi.fn((_, impl) => impl),
-      defineTool: vi.fn(),
       definePrompt: vi.fn(),
       generate: vi.fn(),
     },

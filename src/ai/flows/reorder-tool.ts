@@ -169,7 +169,7 @@ export const getReorderSuggestions = ai.defineTool(
             return {
                 ...base,
                 suggested_reorder_quantity: rawQty,
-                base_quantity: base.base_quantity,
+                base_quantity: base.suggested_reorder_quantity,
                 seasonality_factor: seasonality,
                 confidence,
                 adjustment_reason: reason,

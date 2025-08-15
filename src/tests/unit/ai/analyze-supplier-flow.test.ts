@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { SupplierPerformanceReport } from '@/types';
 
@@ -59,11 +58,11 @@ describe('Analyze Supplier Flow', () => {
     (database.getSupplierPerformanceFromDB as vi.Mock).mockResolvedValue(mockPerformanceData);
 
     const mockPromptFn = vi.fn().mockResolvedValue({
-        output: {
-          analysis: "Mock supplier analysis",
-          bestSupplier: "Best Mock Supplier"
-        }
-      });
+      output: {
+        analysis: "Mock supplier analysis",
+        bestSupplier: "Best Mock Supplier"
+      }
+    });
     (ai.definePrompt as vi.Mock).mockReturnValue(mockPromptFn);
 
     const input = { companyId: 'test-company-id' };
@@ -78,7 +77,8 @@ describe('Analyze Supplier Flow', () => {
 
   it('should handle cases where there is no performance data', async () => {
     (database.getSupplierPerformanceFromDB as vi.Mock).mockResolvedValue([]);
-    const mockPromptFn = (ai.definePrompt as any)();
+    const mockPromptFn = vi.fn();
+    (ai.definePrompt as vi.Mock).mockReturnValue(mockPromptFn);
 
 
     const input = { companyId: 'test-company-id' };
@@ -93,7 +93,6 @@ describe('Analyze Supplier Flow', () => {
   it('should throw an error if the AI analysis fails', async () => {
     (database.getSupplierPerformanceFromDB as vi.Mock).mockResolvedValue(mockPerformanceData);
     
-    // Override the mock for this specific test
     const mockPromptFn = vi.fn().mockResolvedValue({ output: null });
     (ai.definePrompt as vi.Mock).mockReturnValue(mockPromptFn);
 
