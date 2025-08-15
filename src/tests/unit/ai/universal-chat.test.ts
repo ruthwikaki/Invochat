@@ -1,3 +1,4 @@
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@/lib/redis');
@@ -66,9 +67,15 @@ const mockFinalResponse = {
 };
 
 describe('Universal Chat Flow', () => {
+    let mockPromptFn: any;
+
     beforeEach(() => {
         vi.resetAllMocks();
         vi.spyOn(redis, 'isRedisEnabled', 'get').mockReturnValue(false);
+
+        // This needs to be set up fresh for each test
+        mockPromptFn = vi.fn().mockResolvedValue({ output: mockFinalResponse });
+        (ai.definePrompt as vi.Mock).mockReturnValue(mockPromptFn);
     });
 
     it('should call a tool and format the final response', async () => {
@@ -76,10 +83,6 @@ describe('Universal Chat Flow', () => {
             toolRequests: [{ name: 'getReorderSuggestions', input: { companyId: mockCompanyId } }],
             text: ''
         });
-        
-        // Create a proper mock function that returns a promise
-        const mockPromptFn = vi.fn().mockResolvedValue({ output: mockFinalResponse });
-        (ai.definePrompt as vi.Mock).mockReturnValue(mockPromptFn);
 
         const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory as any };
         const result = await universalChatFlow(input);
@@ -96,9 +99,6 @@ describe('Universal Chat Flow', () => {
             toolRequests: [],
         });
         
-        const mockPromptFn = vi.fn().mockResolvedValue({ output: { response: "I cannot help with that." } });
-        (ai.definePrompt as vi.Mock).mockReturnValue(mockPromptFn);
-
         const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory as any };
         await universalChatFlow(input);
         

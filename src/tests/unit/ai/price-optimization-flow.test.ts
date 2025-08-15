@@ -1,3 +1,4 @@
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@/services/database');
@@ -22,27 +23,23 @@ import * as database from '@/services/database';
 import { ai } from '@/ai/genkit';
 
 describe('Price Optimization Flow', () => {
+  let mockPrompt: any;
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  it('should fetch inventory and generate price suggestions', async () => {
-    const mockInventory = {
-      items: [
-        { sku: 'TEST-001', product_title: 'Test', cost: 500, price: 1000, inventory_quantity: 10 },
-      ],
-      totalCount: 1,
-    };
-    (database.getUnifiedInventoryFromDB as vi.Mock).mockResolvedValue(mockInventory);
-    (database.getHistoricalSalesForSkus as vi.Mock).mockResolvedValue([]);
     
-    const mockPrompt = (ai.definePrompt as any)();
+    mockPrompt = (ai.definePrompt as any)();
     mockPrompt.mockResolvedValue({
       output: {
         suggestions: [{ sku: 'TEST-001', currentPrice: 1000, suggestedPrice: 1200 }],
         analysis: "Mock price optimization analysis"
       }
     });
+  });
+
+  it('should fetch inventory and generate price suggestions', async () => {
+    const mockInventory = { items: [{ sku: 'TEST-001', product_title: 'Test', cost: 500, price: 1000, inventory_quantity: 10 }], totalCount: 1};
+    (database.getUnifiedInventoryFromDB as vi.Mock).mockResolvedValue(mockInventory);
+    (database.getHistoricalSalesForSkus as vi.Mock).mockResolvedValue([]);
 
     const input = { companyId: 'test-company-id' };
     const result = await priceOptimizationFlow(input);

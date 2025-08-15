@@ -1,10 +1,11 @@
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@/services/database');
 vi.mock('@/lib/error-handler');
 vi.mock('@/lib/utils', () => ({
   linearRegression: vi.fn(() => ({ slope: 5, intercept: 100 })),
-  differenceInDays: vi.fn(() => 1),
+  differenceInDays: vi.fn(() => 1)
 }));
 vi.mock('@/config/app-config', () => ({
   config: { ai: { model: 'mock-model' } }
@@ -27,10 +28,11 @@ import * as utils from '@/lib/utils';
 import { ai } from '@/ai/genkit';
 
 describe('Product Demand Forecast Flow', () => {
+    let mockPrompt: any;
   beforeEach(() => {
     vi.clearAllMocks();
     
-    const mockPrompt = (ai.definePrompt as any)();
+    mockPrompt = (ai.definePrompt as any)();
     mockPrompt.mockResolvedValue({
       output: {
         confidence: 'High',

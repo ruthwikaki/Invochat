@@ -1,3 +1,4 @@
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { SupplierPerformanceReport } from '@/types';
 
@@ -8,7 +9,7 @@ vi.mock('@/config/app-config', () => ({
   config: { ai: { model: 'mock-model' } }
 }));
 
-// ✅ CORRECT: Create mocks INSIDE the factory to avoid hoisting issues
+// ✅ CORRECT: Create mocks INSIDE the factory
 vi.mock('@/ai/genkit', () => {
   const mockPromptFunction = vi.fn();
   return {
@@ -51,11 +52,12 @@ const mockPerformanceData: SupplierPerformanceReport[] = [
 ];
 
 describe('Analyze Supplier Flow', () => {
+  let mockPrompt: any;
+
   beforeEach(() => {
     vi.clearAllMocks();
-    
-    // Get the mock prompt function and set its behavior for each test
-    const mockPrompt = (ai.definePrompt as any)();
+    // Get the mock prompt function and set its behavior
+    mockPrompt = (ai.definePrompt as any)();
     mockPrompt.mockResolvedValue({
       output: {
         analysis: "Mock supplier analysis",
@@ -71,7 +73,6 @@ describe('Analyze Supplier Flow', () => {
     const result = await analyzeSuppliersFlow(input);
 
     expect(database.getSupplierPerformanceFromDB).toHaveBeenCalledWith(input.companyId);
-    const mockPrompt = (ai.definePrompt as any)();
     expect(mockPrompt).toHaveBeenCalled();
     expect(result.bestSupplier).toBe('Best Mock Supplier');
     expect(result.analysis).toBe('Mock supplier analysis');
@@ -93,7 +94,6 @@ describe('Analyze Supplier Flow', () => {
     (database.getSupplierPerformanceFromDB as vi.Mock).mockResolvedValue(mockPerformanceData);
     
     // Override the mock for this specific test
-    const mockPrompt = (ai.definePrompt as any)();
     mockPrompt.mockResolvedValueOnce({ output: null });
 
     const input = { companyId: 'test-company-id' };
