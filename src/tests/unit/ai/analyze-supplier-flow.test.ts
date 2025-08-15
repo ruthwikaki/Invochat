@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { SupplierPerformanceReport } from '@/types';
 
-// Mock dependencies at the top level
+// 🚨 CRITICAL: Mock dependencies BEFORE importing the flow
 vi.mock('@/services/database');
 vi.mock('@/lib/error-handler');
 vi.mock('@/config/app-config', () => ({
@@ -40,22 +40,23 @@ const mockPerformanceData: SupplierPerformanceReport[] = [
 describe('Analyze Supplier Flow', () => {
 
   beforeEach(() => {
-    vi.resetModules(); // This is crucial to ensure dynamic imports get the new mocks
+    vi.resetModules();
     vi.clearAllMocks();
   });
 
   it('should fetch supplier performance data and generate an analysis', async () => {
-    // Mock Genkit for this specific test
+    // Create a mock prompt function
+    const mockPromptFunction = vi.fn().mockResolvedValue({
+      output: {
+        analysis: "Mock supplier analysis",
+        bestSupplier: "Best Mock Supplier"
+      }
+    });
+
+    // Mock ai module for this specific test
     vi.doMock('@/ai/genkit', () => ({
       ai: {
-        definePrompt: vi.fn().mockReturnValue(
-          vi.fn().mockResolvedValue({
-            output: {
-              analysis: "Mock supplier analysis",
-              bestSupplier: "Best Mock Supplier"
-            }
-          })
-        ),
+        definePrompt: vi.fn().mockReturnValue(mockPromptFunction),
         defineFlow: vi.fn((_, impl) => impl),
         defineTool: vi.fn((_, impl) => impl),
       },
@@ -64,11 +65,17 @@ describe('Analyze Supplier Flow', () => {
     (database.getSupplierPerformanceFromDB as any).mockResolvedValue(mockPerformanceData);
 
     const { analyzeSuppliersFlow } = await import('@/ai/flows/analyze-supplier-flow');
+    const { ai } = await import('@/ai/genkit');
     
     const input = { companyId: 'test-company-id' };
     const result = await analyzeSuppliersFlow(input);
 
     expect(database.getSupplierPerformanceFromDB).toHaveBeenCalledWith(input.companyId);
+    expect(ai.definePrompt).toHaveBeenCalled();
+    expect(mockPromptFunction).toHaveBeenCalledWith(
+      { performanceData: mockPerformanceData },
+      { model: 'mock-model' }
+    );
     expect(result.bestSupplier).toBe('Best Mock Supplier');
     expect(result.analysis).toBe('Mock supplier analysis');
     expect(result.performanceData).toEqual(mockPerformanceData);
@@ -78,7 +85,7 @@ describe('Analyze Supplier Flow', () => {
     vi.doMock('@/ai/genkit', () => ({
       ai: {
         defineFlow: vi.fn((_, impl) => impl),
-        defineTool: vi.fn(), // Must mock defineTool even if not used directly by this test's path
+        defineTool: vi.fn(), // Must mock defineTool even if not used directly
       },
     }));
 
@@ -119,7 +126,7 @@ describe('Analyze Supplier Flow', () => {
       ai: {
         defineTool: vi.fn().mockReturnValue('mock-tool'),
         defineFlow: vi.fn((_, impl) => impl),
-        definePrompt: vi.fn(),
+        definePrompt: vi.fn() // Need to mock definePrompt as it is used in the module
       },
     }));
     
