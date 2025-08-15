@@ -1,3 +1,4 @@
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getDashboardMetrics } from '@/services/database';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -5,8 +6,9 @@ import { DashboardMetricsSchema } from '@/types';
 
 // Mock the Supabase admin client
 vi.mock('@/lib/supabase/admin');
+vi.mock('@/lib/error-handler');
 
-// ✅ Correct: Use a valid UUID in the test data
+// ✅ Correct: Use a valid UUID in the test data and all required fields
 const mockDashboardData = {
   total_revenue: 100000,
   revenue_change: 10.5,

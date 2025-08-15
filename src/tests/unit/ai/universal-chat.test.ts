@@ -1,10 +1,17 @@
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@/lib/redis');
-vi.mock('@/lib/error-handler');
+vi.mock('@/lib/error-handler', () => ({
+  logError: vi.fn(),
+  getErrorMessage: vi.fn(e => (e as Error)?.message || String(e)),
+}));
 vi.mock('@/services/database');
 vi.mock('@/config/app-config', () => ({
-  config: { ai: { model: 'mock-model', maxOutputTokens: 1024 } }
+  config: { 
+      ai: { model: 'mock-model', maxOutputTokens: 1024 },
+      ratelimit: { ai: 100 }
+    }
 }));
 
 // Mock all the tools that are imported by universal-chat
@@ -28,16 +35,16 @@ vi.mock('@/ai/flows/analytics-tools', () => ({
     getPromotionalImpactAnalysis: vi.fn()
 }));
 
-// Fix: Create mock functions INSIDE the factory
-vi.mock('@/ai/genkit', () => {
-  return {
-    ai: {
-      defineFlow: vi.fn((config, implementation) => implementation),
-      definePrompt: vi.fn(),
-      generate: vi.fn(),
-    },
-  };
-});
+const mockPromptFunction = vi.fn();
+const mockGenerate = vi.fn();
+
+vi.mock('@/ai/genkit', () => ({
+  ai: {
+    defineFlow: vi.fn((config, implementation) => implementation),
+    definePrompt: vi.fn(() => mockPromptFunction),
+    generate: mockGenerate,
+  },
+}));
 
 import { universalChatFlow } from '@/ai/flows/universal-chat';
 import * as redis from '@/lib/redis';
@@ -66,38 +73,34 @@ describe('Universal Chat Flow', () => {
     });
 
     it('should call a tool and format the final response', async () => {
-        (ai.generate as vi.Mock).mockResolvedValue({
+        mockGenerate.mockResolvedValue({
             toolRequests: [{ name: 'getReorderSuggestions', input: { companyId: mockCompanyId } }],
             text: ''
         });
         
-        // Create a proper mock function that returns a promise
-        const mockPromptFn = vi.fn().mockResolvedValue({ output: mockFinalResponse });
-        (ai.definePrompt as vi.Mock).mockReturnValue(mockPromptFn);
+        mockPromptFunction.mockResolvedValue({ output: mockFinalResponse });
 
         const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory as any };
         const result = await universalChatFlow(input);
 
-        expect(ai.generate).toHaveBeenCalledWith(expect.anything());
-        expect(mockPromptFn).toHaveBeenCalled();
+        expect(mockGenerate).toHaveBeenCalledWith(expect.anything());
+        expect(mockPromptFunction).toHaveBeenCalled();
         expect(result.toolName).toBe('getReorderSuggestions');
         expect(result.response).toContain('You should reorder these items.');
     });
 
     it('should handle a text-only response from the AI', async () => {
-        (ai.generate as vi.Mock).mockResolvedValue({
+        mockGenerate.mockResolvedValue({
             text: 'I cannot help with that.',
             toolRequests: [],
         });
         
-        // Create a proper mock function that returns a promise
-        const mockPromptFn = vi.fn().mockResolvedValue({ output: { response: "I cannot help with that." } });
-        (ai.definePrompt as vi.Mock).mockReturnValue(mockPromptFn);
+        mockPromptFunction.mockResolvedValue({ output: { response: "I cannot help with that." } });
 
         const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory as any };
         await universalChatFlow(input);
         
-        expect(mockPromptFn).toHaveBeenCalledWith(
+        expect(mockPromptFunction).toHaveBeenCalledWith(
             expect.objectContaining({ userQuery: mockUserQuery, toolResult: 'I cannot help with that.' }),
             expect.anything()
         );
