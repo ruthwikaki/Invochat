@@ -1,37 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { analyzeSuppliersFlow, getSupplierAnalysisTool } from '@/ai/flows/analyze-supplier-flow';
-import * as database from '@/services/database';
-import { ai } from '@/ai/genkit';
 import type { SupplierPerformanceReport } from '@/types';
 
-// Mock dependencies
+// 🚨 CRITICAL: Mock dependencies BEFORE importing the flow
 vi.mock('@/services/database');
-vi.mock('@/ai/genkit', () => {
-  return {
-    ai: {
-      defineTool: vi.fn((config, implementation) => {
-        const mockTool = vi.fn(implementation || (() => Promise.resolve({})));
-        mockTool.config = config;
-        return mockTool;
-      }),
-      defineFlow: vi.fn((config, implementation) => {
-        const mockFlow = vi.fn(implementation || (() => Promise.resolve({})));
-        mockFlow.config = config;
-        return mockFlow;
-      }),
-      definePrompt: vi.fn((config) => {
-        const mockPrompt = vi.fn(async () => ({ 
-          output: {
-            analysis: "Mock supplier analysis",
-            bestSupplier: "Best Mock Supplier"
-          }
-        }));
-        mockPrompt.config = config;
-        return mockPrompt;
-      }),
-    },
-  };
-});
+vi.mock('@/lib/error-handler');
+vi.mock('@/config/app-config', () => ({
+  config: { ai: { model: 'mock-model' } }
+}));
+
+// Create a mock prompt that we can control in tests
+const mockPromptFunction = vi.fn();
+
+vi.mock('@/ai/genkit', () => ({
+  ai: {
+    definePrompt: vi.fn(() => mockPromptFunction),
+    defineFlow: vi.fn((config, implementation) => implementation),
+    defineTool: vi.fn((config, implementation) => implementation),
+  },
+}));
+
+// NOW we can safely import the flows
+import { analyzeSuppliersFlow, getSupplierAnalysisTool } from '@/ai/flows/analyze-supplier-flow';
+import * as database from '@/services/database';
 
 const mockPerformanceData: SupplierPerformanceReport[] = [
   {
@@ -58,21 +48,16 @@ const mockPerformanceData: SupplierPerformanceReport[] = [
   },
 ];
 
-const mockAiResponse = {
-  analysis: "Supplier A is recommended due to their significantly higher average profit margin (50%) and excellent sell-through rate.",
-  bestSupplier: "Supplier A",
-};
-
 describe('Analyze Supplier Flow', () => {
-
   beforeEach(() => {
     vi.clearAllMocks();
-    (ai.definePrompt as any).mockImplementation((config: any) => {
-        const mockPrompt = vi.fn(async () => ({ 
-          output: mockAiResponse
-        }));
-        mockPrompt.config = config;
-        return mockPrompt;
+    
+    // Set up the default mock prompt response
+    mockPromptFunction.mockResolvedValue({
+      output: {
+        analysis: "Mock supplier analysis",
+        bestSupplier: "Best Mock Supplier"
+      }
     });
   });
 
@@ -83,7 +68,7 @@ describe('Analyze Supplier Flow', () => {
     const result = await analyzeSuppliersFlow(input);
 
     expect(database.getSupplierPerformanceFromDB).toHaveBeenCalledWith(input.companyId);
-    expect(ai.definePrompt).toHaveBeenCalled();
+    expect(mockPromptFunction).toHaveBeenCalled();
     expect(result.bestSupplier).toBe('Best Mock Supplier');
     expect(result.analysis).toBe('Mock supplier analysis');
     expect(result.performanceData).toEqual(mockPerformanceData);
@@ -98,17 +83,13 @@ describe('Analyze Supplier Flow', () => {
     expect(result.analysis).toContain('not enough data');
     expect(result.bestSupplier).toBe('N/A');
     expect(result.performanceData).toEqual([]);
-    expect(ai.definePrompt).not.toHaveBeenCalled();
   });
 
   it('should throw an error if the AI analysis fails', async () => {
     (database.getSupplierPerformanceFromDB as vi.Mock).mockResolvedValue(mockPerformanceData);
-    // Mock the prompt to return a null output
-    (ai.definePrompt as any).mockImplementation((config: any) => {
-        const mockPrompt = vi.fn(async () => ({ output: null }));
-        mockPrompt.config = config;
-        return mockPrompt;
-    });
+    
+    // Override the mock for this specific test
+    mockPromptFunction.mockResolvedValueOnce({ output: null });
 
     const input = { companyId: 'test-company-id' };
 

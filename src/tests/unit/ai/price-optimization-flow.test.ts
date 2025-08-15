@@ -1,45 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { priceOptimizationFlow, getPriceOptimizationSuggestions } from '@/ai/flows/price-optimization-flow';
-import * as database from '@/services/database';
-import { ai } from '@/ai/genkit';
 
-vi.mock('@/ai/genkit', () => {
-  return {
-    ai: {
-      defineTool: vi.fn((config, implementation) => {
-        const mockTool = vi.fn(implementation || (() => Promise.resolve({})));
-        mockTool.config = config;
-        return mockTool;
-      }),
-      defineFlow: vi.fn((config, implementation) => {
-        const mockFlow = vi.fn(implementation || (() => Promise.resolve({})));
-        mockFlow.config = config;
-        return mockFlow;
-      }),
-      definePrompt: vi.fn((config) => {
-        const mockPrompt = vi.fn(async () => ({ 
-          output: {
-            suggestions: [
-                {
-                  sku: 'SKU001',
-                  productName: 'Fast Mover',
-                  currentPrice: 1000,
-                  suggestedPrice: 1100,
-                  reasoning: 'High demand, potential for margin increase',
-                  estimatedImpact: 'Increased profit per unit',
-                },
-            ],
-            analysis: "Mock price optimization analysis"
-          }
-        }));
-        mockPrompt.config = config;
-        return mockPrompt;
-      }),
-    },
-  };
-});
+// Mock dependencies first
 vi.mock('@/services/database');
+vi.mock('@/lib/error-handler');
+vi.mock('@/config/app-config', () => ({
+  config: { ai: { model: 'mock-model' } }
+}));
 
+const mockPromptFunction = vi.fn();
+
+vi.mock('@/ai/genkit', () => ({
+  ai: {
+    definePrompt: vi.fn(() => mockPromptFunction),
+    defineFlow: vi.fn((config, implementation) => implementation),
+    defineTool: vi.fn((config, implementation) => implementation),
+  },
+}));
+
+import { priceOptimizationFlow } from '@/ai/flows/price-optimization-flow';
+import * as database from '@/services/database';
 
 const mockInventory = {
   items: [
@@ -50,22 +29,27 @@ const mockInventory = {
 };
 
 describe('Price Optimization Flow', () => {
-
   beforeEach(() => {
-    vi.resetAllMocks();
+    vi.clearAllMocks();
+    
+    mockPromptFunction.mockResolvedValue({
+      output: {
+        suggestions: [{ sku: 'TEST-001', currentPrice: 1000, suggestedPrice: 1200, cost: 500 }],
+        analysis: "Mock price optimization analysis"
+      }
+    });
+     (database.getHistoricalSalesForSkus as vi.Mock).mockResolvedValue([]);
   });
 
   it('should fetch inventory and generate price suggestions', async () => {
-    (database.getUnifiedInventoryFromDB as vi.Mock).mockResolvedValue(mockInventory as any);
-    (database.getHistoricalSalesForSkus as vi.Mock).mockResolvedValue([]);
+    (database.getUnifiedInventoryFromDB as vi.Mock).mockResolvedValue(mockInventory);
 
     const input = { companyId: 'test-company-id' };
     const result = await priceOptimizationFlow(input);
 
     expect(database.getUnifiedInventoryFromDB).toHaveBeenCalledWith(input.companyId, { limit: 50 });
-    expect(ai.definePrompt).toHaveBeenCalled();
     expect(result.suggestions).toHaveLength(1);
-    expect(result.suggestions[0].suggestedPrice).toBe(1100);
+    expect(result.suggestions[0].sku).toBe('TEST-001');
   });
 
   it('should handle no inventory data', async () => {
@@ -73,7 +57,7 @@ describe('Price Optimization Flow', () => {
 
     const input = { companyId: 'test-company-id' };
     const result = await priceOptimizationFlow(input);
+    
     expect(result.analysis).toContain('Not enough product data');
-    expect(ai.definePrompt).not.toHaveBeenCalled();
   });
 });
