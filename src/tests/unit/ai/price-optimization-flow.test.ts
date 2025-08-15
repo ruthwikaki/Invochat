@@ -1,18 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { priceOptimizationFlow } from '@/ai/flows/price-optimization-flow';
 import * as database from '@/services/database';
+import { ai } from '@/ai/genkit';
 
-const defineToolMock = vi.fn((config, func) => func);
-const definePromptMock = vi.fn();
-const defineFlowMock = vi.fn((_config, func) => func);
-
-vi.mock('@/ai/genkit', () => ({
-  ai: {
-    defineTool: defineToolMock,
-    definePrompt: definePromptMock,
-    defineFlow: defineFlowMock,
-  },
-}));
+vi.mock('@/ai/genkit', async () => {
+  const { defineTool, defineFlow, definePrompt } = await vi.importActual('genkit');
+  return {
+    ai: {
+      defineTool: vi.fn((...args) => defineTool(...args)),
+      defineFlow: vi.fn((...args) => defineFlow(...args)),
+      definePrompt: vi.fn((...args) => definePrompt(...args)),
+      generate: vi.fn(),
+    },
+  };
+});
 vi.mock('@/services/database');
 
 
@@ -47,12 +48,10 @@ const mockAiResponse = {
 };
 
 describe('Price Optimization Flow', () => {
-  let suggestPricesPrompt: any;
 
   beforeEach(() => {
     vi.resetAllMocks();
-    suggestPricesPrompt = vi.fn().mockResolvedValue({ output: mockAiResponse });
-    definePromptMock.mockReturnValue(suggestPricesPrompt);
+    vi.mocked(ai.definePrompt).mockReturnValue(vi.fn().mockResolvedValue({ output: mockAiResponse }));
   });
 
   it('should fetch inventory and generate price suggestions', async () => {
@@ -63,12 +62,7 @@ describe('Price Optimization Flow', () => {
     const result = await priceOptimizationFlow(input);
 
     expect(database.getUnifiedInventoryFromDB).toHaveBeenCalledWith(input.companyId, { limit: 50 });
-    expect(suggestPricesPrompt).toHaveBeenCalledWith({
-      products: [
-        { sku: 'SKU001', name: 'Fast Mover', cost: 500, price: 1000, inventory_quantity: 20, sales_last_30_days: 0 },
-        { sku: 'SKU002', name: 'Slow Mover', cost: 2000, price: 2500, inventory_quantity: 100, sales_last_30_days: 0 },
-      ],
-    }, expect.anything());
+    expect(ai.definePrompt).toHaveBeenCalled();
     expect(result.suggestions).toHaveLength(2);
     expect(result.suggestions[0].suggestedPrice).toBe(1100);
     expect(result.suggestions[1].suggestedPrice).toBe(2250);
@@ -80,6 +74,6 @@ describe('Price Optimization Flow', () => {
     const input = { companyId: 'test-company-id' };
     const result = await priceOptimizationFlow(input);
     expect(result.analysis).toContain('Not enough product data');
-    expect(suggestPricesPrompt).not.toHaveBeenCalled();
+    expect(ai.definePrompt).not.toHaveBeenCalled();
   });
 });

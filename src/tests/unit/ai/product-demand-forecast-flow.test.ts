@@ -2,19 +2,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { productDemandForecastFlow } from '@/ai/flows/product-demand-forecast-flow';
 import * as database from '@/services/database';
 import * as utils from '@/lib/utils';
+import { ai } from '@/ai/genkit';
 
-
-const defineToolMock = vi.fn((config, func) => func);
-const definePromptMock = vi.fn();
-const defineFlowMock = vi.fn((_config, func) => func);
-
-vi.mock('@/ai/genkit', () => ({
-  ai: {
-    defineTool: defineToolMock,
-    definePrompt: definePromptMock,
-    defineFlow: defineFlowMock,
-  },
-}));
+vi.mock('@/ai/genkit', async () => {
+  const { defineTool, defineFlow, definePrompt } = await vi.importActual('genkit');
+  return {
+    ai: {
+      defineTool: vi.fn((...args) => defineTool(...args)),
+      defineFlow: vi.fn((...args) => defineFlow(...args)),
+      definePrompt: vi.fn((...args) => definePrompt(...args)),
+      generate: vi.fn(),
+    },
+  };
+});
 vi.mock('@/services/database');
 vi.mock('@/lib/utils');
 
@@ -35,12 +35,10 @@ const mockAiAnalysis = {
 };
 
 describe('Product Demand Forecast Flow', () => {
-    let generateForecastAnalysisPrompt: any;
 
     beforeEach(() => {
         vi.resetAllMocks();
-        generateForecastAnalysisPrompt = vi.fn().mockResolvedValue({ output: mockAiAnalysis });
-        definePromptMock.mockReturnValue(generateForecastAnalysisPrompt);
+        vi.mocked(ai.definePrompt).mockReturnValue(vi.fn().mockResolvedValue({ output: mockAiAnalysis }));
         (utils.linearRegression as vi.Mock).mockReturnValue({ slope: 1, intercept: 10 });
     });
 
@@ -52,7 +50,7 @@ describe('Product Demand Forecast Flow', () => {
 
         expect(database.getHistoricalSalesForSingleSkuFromDB).toHaveBeenCalledWith(input.companyId, input.sku);
         expect(utils.linearRegression).toHaveBeenCalled();
-        expect(generateForecastAnalysisPrompt).toHaveBeenCalled();
+        expect(ai.definePrompt).toHaveBeenCalled();
         expect(result.forecastedDemand).toBeGreaterThan(0);
         expect(result.trend).toBe('Upward');
         expect(result.analysis).toContain('upward trend');

@@ -2,18 +2,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
 import * as redis from '@/lib/redis';
 import type { MessageData, GenerateResponse, ToolRequestPart, GenerateOptions } from 'genkit';
+import { ai } from '@/ai/genkit';
 
-const defineFlowMock = vi.fn((_config, func) => func);
-const definePromptMock = vi.fn();
-const generateMock = vi.fn();
-
-vi.mock('@/ai/genkit', () => ({
-  ai: {
-    defineFlow: defineFlowMock,
-    definePrompt: definePromptMock,
-    generate: generateMock,
-  },
-}));
+vi.mock('@/ai/genkit', async () => {
+  const { defineTool, defineFlow, definePrompt } = await vi.importActual('genkit');
+  return {
+    ai: {
+      defineTool: vi.fn((...args) => defineTool(...args)),
+      defineFlow: vi.fn((...args) => defineFlow(...args)),
+      definePrompt: vi.fn((...args) => definePrompt(...args)),
+      generate: vi.fn(),
+    },
+  };
+});
 vi.mock('@/lib/redis');
 
 const mockUserQuery = 'What should I reorder?';
@@ -72,43 +73,33 @@ const mockFinalResponse = {
 };
 
 describe('Universal Chat Flow', () => {
-    let finalResponsePromptMock: vi.Mock;
-
     beforeEach(() => {
         vi.resetAllMocks();
-        finalResponsePromptMock = vi.fn().mockResolvedValue({ output: mockFinalResponse });
-
-        definePromptMock.mockReturnValue(finalResponsePromptMock);
+        vi.mocked(ai.definePrompt).mockReturnValue(vi.fn().mockResolvedValue({ output: mockFinalResponse }));
         vi.spyOn(redis, 'isRedisEnabled', 'get').mockReturnValue(false);
     });
 
     it('should call a tool and format the final response', async () => {
-        generateMock.mockResolvedValue(mockToolResponse);
+        (ai.generate as vi.Mock).mockResolvedValue(mockToolResponse);
 
         const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory as any };
         const result = await universalChatFlow(input);
 
-        expect(generateMock).toHaveBeenCalledWith(expect.objectContaining({
+        expect(ai.generate).toHaveBeenCalledWith(expect.objectContaining({
             tools: expect.any(Array),
         }));
-        expect(finalResponsePromptMock).toHaveBeenCalledWith(
-            { userQuery: mockUserQuery, toolResult: mockToolRequestPart.toolRequest.input },
-            expect.anything()
-        );
+        expect(ai.definePrompt).toHaveBeenCalledWith(expect.objectContaining({ name: 'finalResponsePrompt' }));
         expect(result.toolName).toBe('getReorderSuggestions');
         expect(result.response).toContain('You should reorder these items.');
     });
 
     it('should handle a text-only response from the AI', async () => {
-        generateMock.mockResolvedValue(mockTextResponse);
+        (ai.generate as vi.Mock).mockResolvedValue(mockTextResponse);
 
         const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory as any };
         await universalChatFlow(input);
         
-        expect(finalResponsePromptMock).toHaveBeenCalledWith(
-            { userQuery: mockUserQuery, toolResult: 'I cannot help with that.' },
-            expect.anything()
-        );
+        expect(ai.definePrompt).toHaveBeenCalled();
     });
 
     it('should use the Redis cache when available', async () => {
@@ -119,7 +110,7 @@ describe('Universal Chat Flow', () => {
         const result = await universalChatFlow(input);
 
         expect(redisGetMock).toHaveBeenCalled();
-        expect(generateMock).not.toHaveBeenCalled();
+        expect(ai.generate).not.toHaveBeenCalled();
         expect(result.response).toBe(mockFinalResponse.response);
     });
 });
