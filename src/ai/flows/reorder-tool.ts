@@ -169,6 +169,7 @@ export const getReorderSuggestions = ai.defineTool(
             return {
                 ...base,
                 suggested_reorder_quantity: rawQty,
+                base_quantity: base.base_quantity,
                 seasonality_factor: seasonality,
                 confidence,
                 adjustment_reason: reason,
@@ -177,7 +178,10 @@ export const getReorderSuggestions = ai.defineTool(
                 avg_daily_sales: 0, // Placeholder
                 lead_time_days: 7, // Placeholder
                 safety_stock: 0, // Placeholder
-                reorder_point: 0, // Placeholder
+                reorder_point: null, // Placeholder
+                min_order_qty: null,
+                max_order_qty: null,
+                weeks_of_coverage: 4,
             };
         });
         

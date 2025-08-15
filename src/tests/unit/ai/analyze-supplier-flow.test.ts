@@ -11,7 +11,6 @@ vi.mock('@/config/app-config', () => ({
 
 // ✅ CORRECT: Create mocks INSIDE the factory
 vi.mock('@/ai/genkit', () => {
-  // Create the mock functions inside the factory to avoid hoisting issues
   return {
     ai: {
       definePrompt: vi.fn(),
@@ -52,25 +51,20 @@ const mockPerformanceData: SupplierPerformanceReport[] = [
 ];
 
 describe('Analyze Supplier Flow', () => {
-  let mockPromptFn: any;
-
   beforeEach(() => {
     vi.clearAllMocks();
-    
-    mockPromptFn = vi.fn();
-    (ai.definePrompt as vi.Mock).mockReturnValue(mockPromptFn);
-
-    // Set up the default mock prompt response
-    mockPromptFn.mockResolvedValue({
-      output: {
-        analysis: "Mock supplier analysis",
-        bestSupplier: "Best Mock Supplier"
-      }
-    });
   });
 
   it('should fetch supplier performance data and generate an analysis', async () => {
     (database.getSupplierPerformanceFromDB as vi.Mock).mockResolvedValue(mockPerformanceData);
+
+    const mockPromptFn = vi.fn().mockResolvedValue({
+        output: {
+          analysis: "Mock supplier analysis",
+          bestSupplier: "Best Mock Supplier"
+        }
+      });
+    (ai.definePrompt as vi.Mock).mockReturnValue(mockPromptFn);
 
     const input = { companyId: 'test-company-id' };
     const result = await analyzeSuppliersFlow(input);
@@ -84,6 +78,8 @@ describe('Analyze Supplier Flow', () => {
 
   it('should handle cases where there is no performance data', async () => {
     (database.getSupplierPerformanceFromDB as vi.Mock).mockResolvedValue([]);
+    const mockPromptFn = (ai.definePrompt as any)();
+
 
     const input = { companyId: 'test-company-id' };
     const result = await analyzeSuppliersFlow(input);
@@ -98,7 +94,8 @@ describe('Analyze Supplier Flow', () => {
     (database.getSupplierPerformanceFromDB as vi.Mock).mockResolvedValue(mockPerformanceData);
     
     // Override the mock for this specific test
-    mockPromptFn.mockResolvedValueOnce({ output: null });
+    const mockPromptFn = vi.fn().mockResolvedValue({ output: null });
+    (ai.definePrompt as vi.Mock).mockReturnValue(mockPromptFn);
 
     const input = { companyId: 'test-company-id' };
 

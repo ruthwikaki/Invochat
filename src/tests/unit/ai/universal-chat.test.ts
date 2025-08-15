@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('@/lib/redis');
 vi.mock('@/lib/error-handler', () => ({
   logError: vi.fn(),
-  getErrorMessage: vi.fn(e => (e as Error)?.message || String(e)),
+  getErrorMessage: vi.fn(e => (e as Error)?.message || String(e) || ''),
 }));
 vi.mock('@/services/database');
 vi.mock('@/config/app-config', () => ({
@@ -36,12 +36,11 @@ vi.mock('@/ai/flows/analytics-tools', () => ({
 
 // Fix: Create mock functions INSIDE the factory
 vi.mock('@/ai/genkit', () => {
-  const promptFn = vi.fn();
   return {
     ai: {
       defineFlow: vi.fn((_, impl) => impl),
       defineTool: vi.fn(),
-      definePrompt: vi.fn(() => promptFn),
+      definePrompt: vi.fn(),
       generate: vi.fn(),
     },
   };
@@ -73,7 +72,8 @@ describe('Universal Chat Flow', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         vi.spyOn(redis, 'isRedisEnabled', 'get').mockReturnValue(false);
-        mockPromptFn = (ai.definePrompt as any).mock.results[0].value;
+        mockPromptFn = vi.fn();
+        (ai.definePrompt as any).mockReturnValue(mockPromptFn);
     });
 
     it('should call a tool and format the final response', async () => {
