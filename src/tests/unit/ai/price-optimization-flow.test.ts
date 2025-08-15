@@ -1,14 +1,15 @@
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { priceOptimizationFlow } from '@/ai/flows/price-optimization-flow';
 import * as database from '@/services/database';
-import * as genkit from '@/ai/genkit';
+import { ai } from '@/ai/genkit';
 
 vi.mock('@/services/database');
 vi.mock('@/ai/genkit', () => ({
   ai: {
-    definePrompt: vi.fn(() => vi.fn()),
+    definePrompt: vi.fn(),
     defineFlow: vi.fn((_config, func) => func),
-    defineTool: vi.fn((_config, func) => func), // Correctly mock defineTool
+    defineTool: vi.fn((_config, func) => func),
   },
 }));
 
@@ -48,7 +49,7 @@ describe('Price Optimization Flow', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     suggestPricesPrompt = vi.fn().mockResolvedValue({ output: mockAiResponse });
-    vi.spyOn(genkit.ai, 'definePrompt').mockReturnValue(suggestPricesPrompt);
+    vi.spyOn(ai, 'definePrompt').mockReturnValue(suggestPricesPrompt);
   });
 
   it('should fetch inventory and generate price suggestions', async () => {

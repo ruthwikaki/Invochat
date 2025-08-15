@@ -1,16 +1,17 @@
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { productDemandForecastFlow } from '@/ai/flows/product-demand-forecast-flow';
 import * as database from '@/services/database';
-import * as genkit from '@/ai/genkit';
+import { ai } from '@/ai/genkit';
 import * as utils from '@/lib/utils';
 
 vi.mock('@/services/database');
 vi.mock('@/lib/utils');
 vi.mock('@/ai/genkit', () => ({
   ai: {
-    definePrompt: vi.fn(() => vi.fn()),
+    definePrompt: vi.fn(),
     defineFlow: vi.fn((_config, func) => func),
-    defineTool: vi.fn((_config, func) => func), // Correctly mock defineTool
+    defineTool: vi.fn((_config, func) => func),
   },
 }));
 
@@ -35,7 +36,7 @@ describe('Product Demand Forecast Flow', () => {
     beforeEach(() => {
         vi.resetAllMocks();
         generateForecastAnalysisPrompt = vi.fn().mockResolvedValue({ output: mockAiAnalysis });
-        vi.spyOn(genkit.ai, 'definePrompt').mockReturnValue(generateForecastAnalysisPrompt);
+        vi.spyOn(ai, 'definePrompt').mockReturnValue(generateForecastAnalysisPrompt);
         vi.spyOn(utils, 'linearRegression').mockReturnValue({ slope: 1, intercept: 10 });
     });
 

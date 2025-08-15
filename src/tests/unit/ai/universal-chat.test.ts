@@ -1,3 +1,4 @@
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
 import * as genkit from '@/ai/genkit';
@@ -72,9 +73,9 @@ describe('Universal Chat Flow', () => {
         finalResponsePromptMock = vi.fn().mockResolvedValue({ output: mockFinalResponse });
 
         // Correctly mock the defineFlow to return a callable function
-        vi.spyOn(genkit.ai, 'defineFlow').mockImplementation((_config, func) => func as any);
-        vi.spyOn(genkit.ai, 'generate').mockImplementation(generateMock);
-        vi.spyOn(genkit.ai, 'definePrompt').mockImplementation(() => finalResponsePromptMock);
+        (genkit.ai.defineFlow as vi.Mock).mockImplementation((_config, func) => func as any);
+        (genkit.ai.generate as vi.Mock).mockImplementation(generateMock);
+        (genkit.ai.definePrompt as vi.Mock).mockImplementation(() => finalResponsePromptMock);
         vi.spyOn(redis, 'isRedisEnabled', 'get').mockReturnValue(false);
     });
 
