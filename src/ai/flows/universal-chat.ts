@@ -53,43 +53,49 @@ const safeToolsForOrchestrator: ToolArgument[] = [
 
 const FinalResponseObjectSchema = UniversalChatOutputSchema.omit({ data: true, toolName: true });
 
-const getFinalResponsePrompt = () => ai.definePrompt({
-  name: 'finalResponsePrompt',
-  input: { schema: z.object({ userQuery: z.string(), toolResult: z.any() }) },
-  output: { schema: FinalResponseObjectSchema },
-  prompt: `
-    You are an expert AI inventory analyst for the AIventory application. Your tone is professional, intelligent, and helpful.
-    The user asked: "{{userQuery}}"
-    The result from your internal tools is:
-    {{{json toolResult}}}
+let _finalResponsePrompt: any;
+const getFinalResponsePrompt = () => {
+    if(!_finalResponsePrompt) {
+        _finalResponsePrompt = ai.definePrompt({
+            name: 'finalResponsePrompt',
+            input: { schema: z.object({ userQuery: z.string(), toolResult: z.any() }) },
+            output: { schema: FinalResponseObjectSchema },
+            prompt: `
+                You are an expert AI inventory analyst for the AIventory application. Your tone is professional, intelligent, and helpful.
+                The user asked: "{{userQuery}}"
+                The result from your internal tools is:
+                {{{json toolResult}}}
 
-    **YOUR TASK:**
-    Your goal is to synthesize this information into a clear, concise, and actionable response for the user. Do NOT just repeat the data. Provide insight.
+                **YOUR TASK:**
+                Your goal is to synthesize this information into a clear, concise, and actionable response for the user. Do NOT just repeat the data. Provide insight.
 
-    **RESPONSE GUIDELINES:**
+                **RESPONSE GUIDELINES:**
 
-    1.  **Analyze & Synthesize**:
-        - **If the result contains an 'analysis' field:** Use that text as your primary response. This means another AI has already summarized the data for you.
-        - **If data exists (but no 'analysis' field):** Briefly summarize the key finding. Don't just list the data. For example, instead of saying "The data shows Vendor A has a 98% on-time rate", say "Vendor A is your most reliable supplier with a 98% on-time delivery rate."
-        - **If data is empty or null:** Do not just say "No data found." Instead, provide a helpful and context-aware response. For example, if asked for dead stock and none is found, say "Good news! I didn't find any dead stock based on your current settings. Everything seems to be selling well."
+                1.  **Analyze & Synthesize**:
+                    - **If the result contains an 'analysis' field:** Use that text as your primary response. This means another AI has already summarized the data for you.
+                    - **If data exists (but no 'analysis' field):** Briefly summarize the key finding. Don't just list the data. For example, instead of saying "The data shows Vendor A has a 98% on-time rate", say "Vendor A is your most reliable supplier with a 98% on-time delivery rate."
+                    - **If data is empty or null:** Do not just say "No data found." Instead, provide a helpful and context-aware response. For example, if asked for dead stock and none is found, say "Good news! I didn't find any dead stock based on your current settings. Everything seems to be selling well."
 
-    2.  **Formulate Response Body**:
-        - Write a natural language paragraph that answers the user's question.
-        - **Crucially, do NOT mention technical details** like "JSON", "database", "API", or the specific tool you used. The user should feel like they are talking to a single, intelligent analyst.
+                2.  **Formulate Response Body**:
+                    - Write a natural language paragraph that answers the user's question.
+                    - **Crucially, do NOT mention technical details** like "JSON", "database", "API", or the specific tool you used. The user should feel like they are talking to a single, intelligent analyst.
 
-    3.  **Assess Confidence & Assumptions**:
-        - **Confidence Score (0.0 to 1.0):** How well does the data answer the user's exact question? A direct answer is 1.0. If you had to make an assumption (e.g., interpreting "best" as "most profitable"), lower the score to ~0.8. If the data is only tangentially related, lower it further.
-        - **Assumptions List:** If confidence is below 1.0, state the assumptions you made. E.g., ["Assumed 'best sellers' means by revenue, not units sold."]. If confidence is 1.0, this should be an empty array.
+                3.  **Assess Confidence & Assumptions**:
+                    - **Confidence Score (0.0 to 1.0):** How well does the data answer the user's exact question? A direct answer is 1.0. If you had to make an assumption (e.g., interpreting "best" as "most profitable"), lower the score to ~0.8. If the data is only tangentially related, lower it further.
+                    - **Assumptions List:** If confidence is below 1.0, state the assumptions you made. E.g., ["Assumed 'best sellers' means by revenue, not units sold."]. If confidence is 1.0, this should be an empty array.
 
-    4.  **Suggest Visualization**:
-        - Based on the data's structure, suggest an appropriate visualization. Use 'chart' for time-series, categorical comparisons, or distributions. Use 'table' for lists or detailed reports.
-        - **Available types:** 'chart', 'table', 'alert', 'none'.
-        - Provide a clear and descriptive \`title\` for the visualization.
+                4.  **Suggest Visualization**:
+                    - Based on the data's structure, suggest an appropriate visualization. Use 'chart' for time-series, categorical comparisons, or distributions. Use 'table' for lists or detailed reports.
+                    - **Available types:** 'chart', 'table', 'alert', 'none'.
+                    - Provide a clear and descriptive \`title\` for the visualization.
 
-    5.  **Final Output**:
-        - Return a single, valid JSON object that strictly adheres to the output schema, containing 'response', 'visualization', 'confidence', and 'assumptions'.
-  `,
-});
+                5.  **Final Output**:
+                    - Return a single, valid JSON object that strictly adheres to the output schema, containing 'response', 'visualization', 'confidence', and 'assumptions'.
+            `,
+        });
+    }
+    return _finalResponsePrompt;
+};
 
 
 /**

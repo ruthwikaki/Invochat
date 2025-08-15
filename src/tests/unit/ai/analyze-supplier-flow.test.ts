@@ -55,7 +55,6 @@ describe('Analyze Supplier Flow', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // This creates a new mock function for each test
     mockPromptFn = vi.fn();
     (ai.definePrompt as vi.Mock).mockReturnValue(mockPromptFn);
   });
