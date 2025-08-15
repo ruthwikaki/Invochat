@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@/services/database');
@@ -11,25 +10,28 @@ vi.mock('@/config/app-config', () => ({
   config: { ai: { model: 'mock-model' } }
 }));
 
-const mockPromptFunction = vi.fn();
-
-vi.mock('@/ai/genkit', () => ({
-  ai: {
-    definePrompt: vi.fn(() => mockPromptFunction),
-    defineFlow: vi.fn((config, implementation) => implementation),
-    defineTool: vi.fn((config, implementation) => implementation),
-  },
-}));
+// Fix: Create mock functions INSIDE the factory
+vi.mock('@/ai/genkit', () => {
+  return {
+    ai: {
+      definePrompt: vi.fn(),
+      defineFlow: vi.fn((config, implementation) => implementation),
+      defineTool: vi.fn((config, implementation) => implementation),
+    },
+  };
+});
 
 import { productDemandForecastFlow } from '@/ai/flows/product-demand-forecast-flow';
 import * as database from '@/services/database';
 import * as utils from '@/lib/utils';
+import { ai } from '@/ai/genkit';
 
 describe('Product Demand Forecast Flow', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     
-    mockPromptFunction.mockResolvedValue({
+    const mockPrompt = (ai.definePrompt as any)();
+    mockPrompt.mockResolvedValue({
       output: {
         confidence: 'High',
         analysis: "Mock demand forecast insights",
@@ -39,13 +41,7 @@ describe('Product Demand Forecast Flow', () => {
   });
 
   it('should forecast demand for a product with sufficient sales data', async () => {
-    const mockSalesData = [
-      { sale_date: '2024-01-01', total_quantity: 100 },
-      { sale_date: '2024-02-01', total_quantity: 110 },
-      { sale_date: '2024-03-01', total_quantity: 120 },
-      { sale_date: '2024-04-01', total_quantity: 130 },
-      { sale_date: '2024-05-01', total_quantity: 140 },
-    ];
+    const mockSalesData = Array.from({ length: 10 }, (_, i) => ({ sale_date: `2024-01-${i+1}`, total_quantity: 100 + i }));
     (database.getHistoricalSalesForSingleSkuFromDB as vi.Mock).mockResolvedValue(mockSalesData);
 
     const input = { companyId: 'test-company-id', sku: 'SKU001', daysToForecast: 30 };
