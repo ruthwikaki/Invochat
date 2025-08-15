@@ -1,6 +1,7 @@
+
 #!/usr/bin/env python3
 """
-Master Test Runner for Invochat
+Master Test Runner for AIVentory
 Orchestrates all test suites and generates comprehensive reports
 """
 
@@ -230,7 +231,7 @@ class MasterTestRunner:
     
     def run_all_tests(self) -> Dict:
         """Run all test suites"""
-        print("🧪 Invochat Comprehensive Test Suite")
+        print("🧪 AIVentory Comprehensive Test Suite")
         print("=" * 60)
         print(f"📅 Started: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"🌐 Base URL: {TestConfig.BASE_URL}")
@@ -356,7 +357,7 @@ class MasterTestRunner:
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Invochat Comprehensive Test Report</title>
+    <title>AIVentory Comprehensive Test Report</title>
     <style>
         body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }}
         .container {{ max-width: 1200px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
@@ -398,7 +399,7 @@ class MasterTestRunner:
 <body>
     <div class="container">
         <div class="header">
-            <h1>🧪 Invochat Test Report</h1>
+            <h1>🧪 AIVentory Test Report</h1>
             <p>📅 Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
             <p>⏱️ Duration: {report['test_run_info']['total_duration']:.2f} seconds</p>
             <p>🌐 Base URL: {report['test_run_info']['base_url']}</p>

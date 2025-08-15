@@ -1,6 +1,7 @@
+
 #!/usr/bin/env python3
 """
-Enhanced Database Tests for Invochat
+Enhanced Database Tests for AIVentory
 Tests all database functions and stored procedures against actual data
 """
 

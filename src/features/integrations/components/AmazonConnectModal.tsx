@@ -73,7 +73,7 @@ export function AmazonConnectModal({ isOpen, onClose }: AmazonConnectModalProps)
                         <AlertDescription className="space-y-1 text-xs">
                            <p>1. In Amazon Seller Central, go to: <strong>Settings → User Permissions</strong>.</p>
                            <p>2. Under &quot;Third-party developer and apps&quot;, click &quot;Visit Manage Your Apps&quot;.</p>
-                           <p>3. Authorize a new developer with Developer ID: [Our ID] and Name: AIventory.</p>
+                           <p>3. Authorize a new developer with Developer ID: [Our ID] and Name: AIVentory.</p>
                            <p>4. This will provide you with your Seller ID and an MWS Authorization Token.</p>
                         </AlertDescription>
                     </Alert>

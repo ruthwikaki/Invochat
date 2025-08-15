@@ -1,7 +1,8 @@
+
 #!/usr/bin/env python3
 """
-Invochat Test Automation Suite - Configuration and Setup
-Production-ready test automation for Invochat application
+AIVentory Test Automation Suite - Configuration and Setup
+Production-ready test automation for AIVentory application
 """
 
 import os

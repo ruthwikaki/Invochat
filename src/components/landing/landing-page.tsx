@@ -54,7 +54,7 @@ const testimonials = [
   {
     name: "Sarah Chen",
     role: "Operations Director, TechGear Plus",
-    content: "AIventory helped us reduce dead stock by 60% in just 3 months. The AI insights are incredible and have become essential to our planning.",
+    content: "AIVentory helped us reduce dead stock by 60% in just 3 months. The AI insights are incredible and have become essential to our planning.",
     avatar: "SC"
   },
   {
@@ -66,7 +66,7 @@ const testimonials = [
   {
     name: "Jennifer Park",
     role: "CEO, EcoLiving Co",
-    content: "We've prevented over $200K in stockouts since implementing AIventory. The predictive reordering is phenomenal. It's like having another analyst on the team.",
+    content: "We've prevented over $200K in stockouts since implementing AIVentory. The predictive reordering is phenomenal. It's like having another analyst on the team.",
     avatar: "JP"
   }
 ];
@@ -89,7 +89,7 @@ export function LandingPage() {
                 </span>
               </h1>
               <p className="text-lg text-gray-600 md:text-xl">
-                AIventory is the AI-native inventory management platform that helps you stop guessing and start making data-driven decisions.
+                AIVentory is the AI-native inventory management platform that helps you stop guessing and start making data-driven decisions.
               </p>
               <div>
                 <Button asChild size="lg" className="group rounded-full px-8 py-6 text-base font-semibold shadow-lg hover:shadow-2xl transition-shadow duration-300">
@@ -134,7 +134,7 @@ export function LandingPage() {
             <div className="text-center mb-16">
               <h2 className="text-3xl font-bold tracking-tight md:text-4xl text-gray-900">Trusted by Growing Businesses</h2>
               <p className="mt-4 text-gray-600 md:text-xl">
-                See how AIventory is making a real impact.
+                See how AIVentory is making a real impact.
               </p>
             </div>
             <div className="grid md:grid-cols-3 gap-8">
@@ -187,7 +187,7 @@ export function LandingPage() {
       <footer className="w-full border-t bg-white">
         <div className="container mx-auto py-6 px-4 md:px-6 flex flex-col sm:flex-row items-center justify-between text-sm text-gray-500">
           <p className="text-xs">
-            &copy; {new Date().getFullYear()} AIventory. All rights reserved.
+            &copy; {new Date().getFullYear()} AIVentory. All rights reserved.
           </p>
           <div className="flex gap-4 mt-4 sm:mt-0">
             <Link href="/terms-of-service" className="hover:text-primary transition-colors">Terms of Service</Link>

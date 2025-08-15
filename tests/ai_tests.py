@@ -1,6 +1,7 @@
+
 #!/usr/bin/env python3
 """
-AI Features Test Suite for Invochat
+AI Features Test Suite for AIVentory
 Tests AI chat functionality, conversation management, and AI tool responses
 """
 

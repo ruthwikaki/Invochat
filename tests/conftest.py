@@ -1,6 +1,7 @@
+
 #!/usr/bin/env python3
 """
-Pytest configuration and fixtures for Invochat test suite
+Pytest configuration and fixtures for AIVentory test suite
 Global configuration, fixtures, and test utilities
 """
 
@@ -57,7 +58,7 @@ def pytest_configure(config):
     # Set up test environment
     TestConfig.create_directories()
     
-    print("\n🧪 Invochat Test Suite Configuration")
+    print("\n🧪 AIVentory Test Suite Configuration")
     print("=" * 50)
     print(f"Base URL: {TestConfig.BASE_URL}")
     print(f"Browser Headless: {os.getenv('BROWSER_HEADLESS', 'true')}")
@@ -213,7 +214,7 @@ def sample_company_data(database_connection, test_companies):
 @pytest.fixture
 def temp_screenshot_dir():
     """Temporary directory for test screenshots"""
-    with tempfile.TemporaryDirectory(prefix="invochat_test_screenshots_") as temp_dir:
+    with tempfile.TemporaryDirectory(prefix="aiventory_test_screenshots_") as temp_dir:
         yield temp_dir
 
 @pytest.fixture(autouse=True)
@@ -310,7 +311,7 @@ def pytest_runtest_teardown(item, nextitem):
 
 def pytest_sessionstart(session):
     """Session start hook"""
-    print(f"\n🚀 Starting Invochat test session at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"\n🚀 Starting AIVentory test session at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
 def pytest_sessionfinish(session, exitstatus):
     """Session finish hook"""

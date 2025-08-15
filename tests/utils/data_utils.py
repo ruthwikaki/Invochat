@@ -1,3 +1,4 @@
+
 """
 Enhanced data utility functions for testing
 """
@@ -101,7 +102,7 @@ class TestReporter:
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Invochat Test Report</title>
+    <title>AIVentory Test Report</title>
     <style>
         body {{ font-family: Arial, sans-serif; margin: 20px; }}
         .header {{ background: #f0f0f0; padding: 20px; border-radius: 5px; }}
@@ -122,7 +123,7 @@ class TestReporter:
 </head>
 <body>
     <div class="header">
-        <h1>🧪 Invochat Test Report</h1>
+        <h1>🧪 AIVentory Test Report</h1>
         <p>Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
         <p>Duration: {summary['total_duration']:.2f} seconds</p>
     </div>

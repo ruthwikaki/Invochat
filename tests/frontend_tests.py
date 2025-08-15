@@ -1,6 +1,7 @@
+
 #!/usr/bin/env python3
 """
-Frontend Test Suite for Invochat
+Frontend Test Suite for AIVentory
 Tests UI functionality, navigation, forms, and user interactions using Selenium
 """
 
@@ -543,6 +544,8 @@ class TestProductManagement:
                 for nav_selector in nav_attempts:
                     if self.browser.click_element(nav_selector):
                         time.sleep(3)
+                        print(f"   🧭 Navigated via product link: {nav_selector}")
+                        
                         # Check again for product list
                         for selector in list_selectors:
                             if self.browser.is_element_present(selector):

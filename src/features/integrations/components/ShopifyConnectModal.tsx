@@ -72,7 +72,7 @@ export function ShopifyConnectModal({ isOpen, onClose }: ShopifyConnectModalProp
                         <AlertTitle>How to get your credentials</AlertTitle>
                         <AlertDescription className="space-y-1 text-xs">
                             <p>1. In your Shopify Admin, go to: <strong>Settings → Apps and sales channels → Develop apps</strong>.</p>
-                            <p>2. Create a new app named &quot;AIventory Integration&quot; and configure Admin API scopes.</p>
+                            <p>2. Create a new app named &quot;AIVentory Integration&quot; and configure Admin API scopes.</p>
                             <p>3. Grant these permissions: <strong>read_products, read_orders, read_inventory, write_inventory</strong>.</p>
                             <p>4. Install the app and copy the <strong>Admin API access token</strong> shown.</p>
                         </AlertDescription>
