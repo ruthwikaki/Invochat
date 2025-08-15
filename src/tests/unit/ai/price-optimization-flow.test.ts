@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@/services/database');
@@ -28,7 +27,7 @@ describe('Price Optimization Flow', () => {
         ai: {
             definePrompt: vi.fn().mockReturnValue(mockPromptFn),
             defineFlow: vi.fn((_config, implementation) => implementation),
-            defineTool: vi.fn()
+            defineTool: vi.fn((_, impl) => impl),
         }
     }));
     
@@ -51,7 +50,8 @@ describe('Price Optimization Flow', () => {
      vi.doMock('@/ai/genkit', () => ({
         ai: {
             defineFlow: vi.fn((_config, implementation) => implementation),
-            defineTool: vi.fn()
+            defineTool: vi.fn(),
+            definePrompt: vi.fn(),
         }
     }));
 

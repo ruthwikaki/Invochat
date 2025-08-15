@@ -1,8 +1,7 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { SupplierPerformanceReport } from '@/types';
 
-// 🚨 CRITICAL: Mock dependencies BEFORE importing the flow
+// Mock dependencies at the top level
 vi.mock('@/services/database');
 vi.mock('@/lib/error-handler');
 vi.mock('@/config/app-config', () => ({
@@ -40,8 +39,8 @@ const mockPerformanceData: SupplierPerformanceReport[] = [
 describe('Analyze Supplier Flow', () => {
 
   beforeEach(() => {
-    vi.resetModules();
     vi.clearAllMocks();
+    vi.resetModules(); // Reset modules before each test to ensure mocks are fresh
   });
 
   it('should fetch supplier performance data and generate an analysis', async () => {
@@ -70,7 +69,8 @@ describe('Analyze Supplier Flow', () => {
     const result = await analyzeSuppliersFlow(input);
 
     expect(database.getSupplierPerformanceFromDB).toHaveBeenCalledWith(input.companyId);
-    expect(ai.definePrompt().mock.results[0].value).toHaveBeenCalled();
+    const mockPrompt = (ai.definePrompt as any).getMockImplementation()();
+    expect(mockPrompt).toHaveBeenCalled();
     expect(result.bestSupplier).toBe('Best Mock Supplier');
     expect(result.analysis).toBe('Mock supplier analysis');
     expect(result.performanceData).toEqual(mockPerformanceData);
@@ -80,7 +80,7 @@ describe('Analyze Supplier Flow', () => {
     vi.doMock('@/ai/genkit', () => ({
       ai: {
         defineFlow: vi.fn((_, impl) => impl),
-        defineTool: vi.fn(), // Must mock defineTool even if not used directly
+        defineTool: vi.fn(),
       },
     }));
 
@@ -119,8 +119,9 @@ describe('Analyze Supplier Flow', () => {
   it('should be exposed as a Genkit tool', async () => {
      vi.doMock('@/ai/genkit', () => ({
       ai: {
-        defineTool: vi.fn(),
+        defineTool: vi.fn().mockReturnValue('mock-tool'),
         defineFlow: vi.fn((_, impl) => impl),
+        definePrompt: vi.fn(),
       },
     }));
     

@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Message } from '@/types';
 
@@ -18,6 +17,7 @@ vi.mock('crypto', () => ({
     }),
   }
 }));
+vi.mock('@/lib/redis');
 
 // Mock all tool imports from the universal chat flow
 vi.mock('@/ai/flows/economic-tool', () => ({ getEconomicIndicators: vi.fn() }));
@@ -41,7 +41,7 @@ const mockUserQuery = 'What should I reorder?';
 const mockCompanyId = 'test-company-id';
 
 const mockConversationHistory: Partial<Message>[] = [
-    { role: 'user', content: [{ text: mockUserQuery }] }
+    { role: 'user', content: [{ text: mockUserQuery }] as any }
 ];
 
 const mockFinalResponse = {
@@ -61,22 +61,19 @@ describe('Universal Chat Flow', () => {
     });
 
     it('should call a tool and format the final response', async () => {
+        const mockPromptFn = vi.fn().mockResolvedValue({ output: mockFinalResponse });
+        
         vi.doMock('@/lib/redis', () => ({
           isRedisEnabled: false,
-          redisClient: {},
         }));
-
-        const mockPromptFn = vi.fn().mockResolvedValue({ output: mockFinalResponse });
-        const mockGenerateFn = vi.fn().mockResolvedValue({
-            toolRequests: [{ name: 'getReorderSuggestions', input: { companyId: mockCompanyId } }],
-            text: ''
-        });
-
         vi.doMock('@/ai/genkit', () => ({
             ai: {
                 defineFlow: vi.fn((_, impl) => impl),
                 definePrompt: vi.fn().mockReturnValue(mockPromptFn),
-                generate: mockGenerateFn,
+                generate: vi.fn().mockResolvedValue({
+                    toolRequests: [{ name: 'getReorderSuggestions', input: { companyId: mockCompanyId } }],
+                    text: ''
+                }),
             },
         }));
 
@@ -93,22 +90,19 @@ describe('Universal Chat Flow', () => {
     });
 
     it('should handle a text-only response from the AI', async () => {
+        const mockPromptFn = vi.fn().mockResolvedValue({ output: { response: "I cannot help with that." } });
+        
         vi.doMock('@/lib/redis', () => ({
             isRedisEnabled: false,
-            redisClient: {},
         }));
-        
-        const mockPromptFn = vi.fn().mockResolvedValue({ output: { response: "I cannot help with that." } });
-        const mockGenerateFn = vi.fn().mockResolvedValue({
-            text: 'I cannot help with that.',
-            toolRequests: [],
-        });
-
         vi.doMock('@/ai/genkit', () => ({
              ai: {
                 defineFlow: vi.fn((_, impl) => impl),
                 definePrompt: vi.fn(() => mockPromptFn),
-                generate: mockGenerateFn,
+                generate: vi.fn().mockResolvedValue({
+                    text: 'I cannot help with that.',
+                    toolRequests: [],
+                }),
             },
         }));
         
@@ -133,33 +127,32 @@ describe('Universal Chat Flow', () => {
             }
         }));
 
-        const mockGenerateFn = vi.fn();
         vi.doMock('@/ai/genkit', () => ({
             ai: {
                 defineFlow: vi.fn((_, impl) => impl),
-                generate: mockGenerateFn,
+                generate: vi.fn(),
             },
         }));
         
         const { universalChatFlow } = await import('@/ai/flows/universal-chat');
         const { redisClient } = await import('@/lib/redis');
+        const { ai } = await import('@/ai/genkit');
 
         const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory as Message[] };
         const result = await universalChatFlow(input);
 
         expect(redisClient.get).toHaveBeenCalledWith('aichat:test-company-id:mocked-hash');
-        expect(mockGenerateFn).not.toHaveBeenCalled();
+        expect(ai.generate).not.toHaveBeenCalled();
         expect(result.response).toBe(mockFinalResponse.response);
     });
     
     it('should handle errors gracefully', async () => {
        vi.doMock('@/lib/redis', () => ({ isRedisEnabled: false }));
-       const mockGenerateFn = vi.fn().mockRejectedValue(new Error('Service unavailable'));
 
        vi.doMock('@/ai/genkit', () => ({
             ai: {
                 defineFlow: vi.fn((_, impl) => impl),
-                generate: mockGenerateFn,
+                generate: vi.fn().mockRejectedValue(new Error('Service unavailable')),
             },
        }));
 
