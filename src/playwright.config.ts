@@ -66,9 +66,6 @@ export default defineConfig({
         WOOCOMMERCE_WEBHOOK_SECRET: process.env.WOOCOMMERCE_WEBHOOK_SECRET || 'test_secret_for_ci',
         HEALTH_CHECK_API_KEY: process.env.HEALTH_CHECK_API_KEY || 'test_health_key',
         TESTING_API_KEY: process.env.TESTING_API_KEY || 'test_api_key_for_ci',
-        // This is important: tells the app to use mocked AI responses for tests
-        // to avoid actual API calls to Google, making tests faster and more reliable.
-        MOCK_AI: 'true',
     }
   },
 });
