@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@/lib/redis');
@@ -34,7 +33,6 @@ vi.mock('@/ai/flows/analytics-tools', () => ({
     getPromotionalImpactAnalysis: vi.fn()
 }));
 
-// Fix: Create mock functions INSIDE the factory
 vi.mock('@/ai/genkit', () => {
   return {
     ai: {

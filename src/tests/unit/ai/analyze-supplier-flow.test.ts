@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { SupplierPerformanceReport } from '@/types';
 
@@ -94,6 +93,7 @@ describe('Analyze Supplier Flow', () => {
   it('should throw an error if the AI analysis fails', async () => {
     (database.getSupplierPerformanceFromDB as vi.Mock).mockResolvedValue(mockPerformanceData);
     
+    // Override the mock for this specific test
     mockPromptFn.mockResolvedValue({ output: null });
 
     const input = { companyId: 'test-company-id' };

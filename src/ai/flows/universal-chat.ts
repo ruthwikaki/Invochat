@@ -147,7 +147,7 @@ export const universalChatFlow = ai.defineFlow(
     // --- Redis Caching Logic ---
     const queryHash = crypto.createHash('sha256').update(userQuery.toLowerCase().trim()).digest('hex');
     const cacheKey = `aichat:${companyId}:${queryHash}`;
-    if (redis.isRedisEnabled) {
+    if (isRedisEnabled) {
       try {
         const cachedResponse = await redis.redisClient.get(cacheKey);
         if (cachedResponse) {
@@ -232,7 +232,7 @@ export const universalChatFlow = ai.defineFlow(
             finalResponse.response = `I'm not very confident in this result, but here is what I found:\n\n${finalResponse.response}\n\nMy assumptions were: ${finalResponse.assumptions?.join(', ') || 'none'}. You may want to try rephrasing your question for a more accurate answer.`;
         }
        
-        if (redis.isRedisEnabled) {
+        if (isRedisEnabled) {
             await redis.redisClient.set(cacheKey, JSON.stringify(finalResponse), 'EX', 3600);
         }
         return finalResponse;
