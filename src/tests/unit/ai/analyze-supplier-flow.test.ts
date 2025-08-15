@@ -50,20 +50,24 @@ const mockPerformanceData: SupplierPerformanceReport[] = [
 ];
 
 describe('Analyze Supplier Flow', () => {
+  let mockPromptFn: any;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    // This creates a new mock function for each test
+    mockPromptFn = vi.fn();
+    (ai.definePrompt as vi.Mock).mockReturnValue(mockPromptFn);
   });
 
   it('should fetch supplier performance data and generate an analysis', async () => {
     (database.getSupplierPerformanceFromDB as vi.Mock).mockResolvedValue(mockPerformanceData);
 
-    const mockPromptFn = vi.fn().mockResolvedValue({
+    mockPromptFn.mockResolvedValue({
       output: {
         analysis: "Mock supplier analysis",
         bestSupplier: "Best Mock Supplier"
       }
     });
-    (ai.definePrompt as vi.Mock).mockReturnValue(mockPromptFn);
 
     const input = { companyId: 'test-company-id' };
     const result = await analyzeSuppliersFlow(input);
@@ -77,9 +81,6 @@ describe('Analyze Supplier Flow', () => {
 
   it('should handle cases where there is no performance data', async () => {
     (database.getSupplierPerformanceFromDB as vi.Mock).mockResolvedValue([]);
-    const mockPromptFn = vi.fn();
-    (ai.definePrompt as vi.Mock).mockReturnValue(mockPromptFn);
-
 
     const input = { companyId: 'test-company-id' };
     const result = await analyzeSuppliersFlow(input);
@@ -93,8 +94,7 @@ describe('Analyze Supplier Flow', () => {
   it('should throw an error if the AI analysis fails', async () => {
     (database.getSupplierPerformanceFromDB as vi.Mock).mockResolvedValue(mockPerformanceData);
     
-    const mockPromptFn = vi.fn().mockResolvedValue({ output: null });
-    (ai.definePrompt as vi.Mock).mockReturnValue(mockPromptFn);
+    mockPromptFn.mockResolvedValue({ output: null });
 
     const input = { companyId: 'test-company-id' };
 

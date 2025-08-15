@@ -9,8 +9,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { getHistoricalSalesForSingleSkuFromDB } from '@/services/database';
 import { logError } from '@/lib/error-handler';
-import { linearRegression } from '@/lib/utils';
-import { differenceInDays } from 'date-fns';
+import { linearRegression, differenceInDays } from '@/lib/utils';
 import { config } from '@/config/app-config';
 
 const ForecastInputSchema = z.object({
@@ -130,6 +129,7 @@ export const productDemandForecastFlow = ai.defineFlow(
 
     } catch (e) {
       logError(e, { context: `[Demand Forecast Flow] Failed for SKU ${sku} in company ${companyId}` });
+      if(e instanceof Error) throw e;
       throw new Error("An error occurred while generating the demand forecast.");
     }
   }

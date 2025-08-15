@@ -2,17 +2,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@/services/database');
 vi.mock('@/lib/error-handler');
-vi.mock('@/lib/utils', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('@/lib/utils')>();
-    return {
-        ...actual,
-        linearRegression: vi.fn(() => ({ slope: 5, intercept: 100 })),
-    }
-});
+vi.mock('@/lib/utils', () => ({
+  linearRegression: vi.fn(() => ({ slope: 5, intercept: 100 })),
+  differenceInDays: vi.fn(() => 1)
+}));
 vi.mock('@/config/app-config', () => ({
   config: { ai: { model: 'mock-model' } }
 }));
 
+// Fix: Create mock functions INSIDE the factory
 vi.mock('@/ai/genkit', () => {
   return {
     ai: {
@@ -29,28 +27,32 @@ import * as utils from '@/lib/utils';
 import { ai } from '@/ai/genkit';
 
 describe('Product Demand Forecast Flow', () => {
+  let mockPromptFn: any;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPromptFn = vi.fn();
+    (ai.definePrompt as vi.Mock).mockReturnValue(mockPromptFn);
   });
 
   it('should forecast demand for a product with sufficient sales data', async () => {
     const mockSalesData = Array.from({ length: 10 }, (_, i) => ({ sale_date: `2024-01-${String(i+1).padStart(2,'0')}`, total_quantity: 100 + i }));
     (database.getHistoricalSalesForSingleSkuFromDB as vi.Mock).mockResolvedValue(mockSalesData);
 
-    const mockPromptFn = vi.fn().mockResolvedValue({
+    mockPromptFn.mockResolvedValue({
         output: {
           confidence: 'High',
           analysis: "Mock demand forecast insights",
           trend: 'Upward'
         }
       });
-    (ai.definePrompt as vi.Mock).mockReturnValue(mockPromptFn);
-
+    
     const input = { companyId: 'test-company-id', sku: 'SKU001', daysToForecast: 30 };
     const result = await productDemandForecastFlow(input);
 
     expect(database.getHistoricalSalesForSingleSkuFromDB).toHaveBeenCalledWith(input.companyId, input.sku);
     expect(utils.linearRegression).toHaveBeenCalled();
+    expect(mockPromptFn).toHaveBeenCalled();
     expect(result.confidence).toBe('High');
     expect(result.analysis).toBe('Mock demand forecast insights');
   });
@@ -64,5 +66,6 @@ describe('Product Demand Forecast Flow', () => {
     expect(result.confidence).toBe('Low');
     expect(result.analysis).toContain('not enough historical sales data');
     expect(utils.linearRegression).not.toHaveBeenCalled();
+    expect(mockPromptFn).not.toHaveBeenCalled();
   });
 });

@@ -130,6 +130,7 @@ export const priceOptimizationFlow = ai.defineFlow(
 
     } catch (e) {
       logError(e, { context: `[Price Optimization Flow] Failed for company ${companyId}` });
+      if (e instanceof Error) throw e;
       throw new Error("An error occurred while generating price optimization suggestions.");
     }
   }
