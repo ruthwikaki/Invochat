@@ -36,8 +36,9 @@ describe('Product Demand Forecast Flow', () => {
     beforeEach(() => {
         vi.resetAllMocks();
         generateForecastAnalysisPrompt = vi.fn().mockResolvedValue({ output: mockAiAnalysis });
-        vi.spyOn(ai, 'definePrompt').mockReturnValue(generateForecastAnalysisPrompt);
-        vi.spyOn(utils, 'linearRegression').mockReturnValue({ slope: 1, intercept: 10 });
+        (ai.definePrompt as vi.Mock).mockReturnValue(generateForecastAnalysisPrompt);
+        (ai.defineFlow as vi.Mock).mockImplementation((_config, func) => func as any);
+        (utils.linearRegression as vi.Mock).mockReturnValue({ slope: 1, intercept: 10 });
     });
 
     it('should forecast demand for a product with sufficient sales data', async () => {

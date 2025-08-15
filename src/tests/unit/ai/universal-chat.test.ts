@@ -3,11 +3,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
 import * as genkit from '@/ai/genkit';
 import * as redis from '@/lib/redis';
-import type { MessageData, GenerateResponse, ToolRequestPart, GenerateOptions } from 'genkit';
+import type { MessageData, GenerateResponse, ToolRequestPart } from 'genkit';
 
 vi.mock('@/ai/genkit', () => ({
   ai: {
-    defineFlow: vi.fn((config, func) => func),
+    defineFlow: vi.fn(),
     definePrompt: vi.fn(),
     generate: vi.fn(),
   },
@@ -77,7 +77,8 @@ describe('Universal Chat Flow', () => {
         vi.resetAllMocks();
         finalResponsePromptMock = vi.fn().mockResolvedValue({ output: mockFinalResponse });
 
-        (genkit.ai.defineFlow as vi.Mock).mockImplementation((_config, func) => func as any);
+        // Correctly mock defineFlow to return the actual function
+        (genkit.ai.defineFlow as vi.Mock).mockImplementation((_config, func) => func);
         (genkit.ai.definePrompt as vi.Mock).mockReturnValue(finalResponsePromptMock);
         vi.spyOn(redis, 'isRedisEnabled', 'get').mockReturnValue(false);
     });

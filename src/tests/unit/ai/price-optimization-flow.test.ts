@@ -49,7 +49,7 @@ describe('Price Optimization Flow', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     suggestPricesPrompt = vi.fn().mockResolvedValue({ output: mockAiResponse });
-    vi.spyOn(ai, 'definePrompt').mockReturnValue(suggestPricesPrompt);
+    (ai.definePrompt as vi.Mock).mockReturnValue(suggestPricesPrompt);
   });
 
   it('should fetch inventory and generate price suggestions', async () => {

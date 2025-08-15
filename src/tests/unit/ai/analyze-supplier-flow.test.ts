@@ -11,7 +11,7 @@ vi.mock('@/ai/genkit', () => ({
   ai: {
     definePrompt: vi.fn(),
     defineFlow: vi.fn((_config, func) => func),
-    defineTool: vi.fn((_config, func) => func), // Correctly mock defineTool
+    defineTool: vi.fn((_config, func) => func),
   },
 }));
 
@@ -50,10 +50,10 @@ describe('Analyze Supplier Flow', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
-    // Mock the prompt function that the flow will call
     supplierAnalysisPrompt = vi.fn().mockResolvedValue({ output: mockAiResponse });
-    vi.spyOn(ai, 'definePrompt').mockReturnValue(supplierAnalysisPrompt);
-    vi.spyOn(ai, 'defineTool').mockImplementation((_config, func) => func as any);
+    (ai.definePrompt as vi.Mock).mockReturnValue(supplierAnalysisPrompt);
+    (ai.defineFlow as vi.Mock).mockImplementation((_config, func) => func as any);
+    (ai.defineTool as vi.Mock).mockImplementation((_config, func) => func as any);
   });
 
   it('should fetch supplier performance data and generate an analysis', async () => {
@@ -62,13 +62,8 @@ describe('Analyze Supplier Flow', () => {
     const input = { companyId: 'test-company-id' };
     const result = await analyzeSuppliersFlow(input);
 
-    // Verify that the database was called correctly
     expect(database.getSupplierPerformanceFromDB).toHaveBeenCalledWith(input.companyId);
-
-    // Verify that the AI prompt was called with the correct data
     expect(supplierAnalysisPrompt).toHaveBeenCalledWith({ performanceData: mockPerformanceData }, expect.anything());
-
-    // Verify that the final output combines data from the DB and the AI
     expect(result.bestSupplier).toBe('Supplier A');
     expect(result.analysis).toContain('higher average profit margin');
     expect(result.performanceData).toEqual(mockPerformanceData);
@@ -83,13 +78,11 @@ describe('Analyze Supplier Flow', () => {
     expect(result.analysis).toContain('not enough data');
     expect(result.bestSupplier).toBe('N/A');
     expect(result.performanceData).toEqual([]);
-    // Ensure the AI prompt is not called if there's no data
     expect(supplierAnalysisPrompt).not.toHaveBeenCalled();
   });
 
   it('should throw an error if the AI analysis fails', async () => {
     (database.getSupplierPerformanceFromDB as any).mockResolvedValue(mockPerformanceData);
-    // Mock the AI prompt to return no output
     supplierAnalysisPrompt.mockResolvedValue({ output: null });
 
     const input = { companyId: 'test-company-id' };
@@ -98,10 +91,7 @@ describe('Analyze Supplier Flow', () => {
   });
 
   it('should be exposed as a Genkit tool', () => {
-    // This test now just confirms that the function exists.
-    // The spy in beforeEach verifies that defineTool is called.
     expect(getSupplierAnalysisTool).toBeDefined();
-    // Since the mock is now correct, we can assert it was called.
     expect(ai.defineTool).toHaveBeenCalledWith(expect.objectContaining({ name: 'getSupplierPerformanceAnalysis' }), expect.any(Function));
   });
 });
