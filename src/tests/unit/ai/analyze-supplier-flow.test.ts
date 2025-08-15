@@ -52,10 +52,6 @@ describe('Analyze Supplier Flow', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // This setup correctly mocks the result of the prompt call
-    (ai.generate as vi.Mock).mockResolvedValue({
-      output: () => mockAiResponse
-    });
     vi.mocked(ai.definePrompt).mockReturnValue(vi.fn().mockResolvedValue({ output: mockAiResponse }));
   });
 
@@ -92,5 +88,13 @@ describe('Analyze Supplier Flow', () => {
     const input = { companyId: 'test-company-id' };
 
     await expect(analyzeSuppliersFlow(input)).rejects.toThrow('AI analysis of supplier performance failed to return an output.');
+  });
+
+  it('should be exposed as a Genkit tool', () => {
+    // The tool is defined when the module is imported.
+    // This test now just confirms that the function exists.
+    // The spy in beforeEach verifies that defineTool is called.
+    expect(getSupplierAnalysisTool).toBeDefined();
+    expect(ai.defineTool).toHaveBeenCalledWith(expect.objectContaining({ name: 'getSupplierPerformanceAnalysis' }), expect.any(Function));
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { priceOptimizationFlow } from '@/ai/flows/price-optimization-flow';
+import { priceOptimizationFlow, getPriceOptimizationSuggestions } from '@/ai/flows/price-optimization-flow';
 import * as database from '@/services/database';
 import { ai } from '@/ai/genkit';
 

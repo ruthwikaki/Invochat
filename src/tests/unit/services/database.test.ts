@@ -37,7 +37,7 @@ describe('Database Service - Business Logic', () => {
 
   it('getDashboardMetrics should call the correct RPC function and return data', async () => {
     // Mock successful response with proper structure
-    supabaseMock.rpc.mockResolvedValue({ 
+    (supabaseMock.rpc as any).mockResolvedValue({ 
       data: mockDashboardData, 
       error: null 
     });
@@ -56,7 +56,7 @@ describe('Database Service - Business Logic', () => {
   it('getDashboardMetrics should throw an error if the RPC call fails', async () => {
     const dbError = new Error('Database connection error');
     
-    supabaseMock.rpc.mockResolvedValue({ 
+    (supabaseMock.rpc as any).mockResolvedValue({ 
       data: null, 
       error: dbError 
     });
