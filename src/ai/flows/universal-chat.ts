@@ -52,7 +52,8 @@ const safeToolsForOrchestrator: ToolArgument[] = [
 
 
 const FinalResponseObjectSchema = UniversalChatOutputSchema.omit({ data: true, toolName: true });
-const finalResponsePrompt = ai.definePrompt({
+
+const getFinalResponsePrompt = () => ai.definePrompt({
   name: 'finalResponsePrompt',
   input: { schema: z.object({ userQuery: z.string(), toolResult: z.any() }) },
   output: { schema: FinalResponseObjectSchema },
@@ -178,7 +179,7 @@ export const universalChatFlow = ai.defineFlow(
 
             logger.info(`[UniversalChat:Flow] AI requested tool: "${toolName}"`);
 
-            const { output: finalOutput } = await finalResponsePrompt(
+            const { output: finalOutput } = await getFinalResponsePrompt()(
                 { userQuery, toolResult: toolResponseData },
                 { model: config.ai.model, config: { maxOutputTokens: config.ai.maxOutputTokens } }
             );
@@ -195,7 +196,7 @@ export const universalChatFlow = ai.defineFlow(
 
         } else if(response.text) {
              logger.info(`[UniversalChat:Flow] AI generated a text-only response. Synthesizing final response.`);
-            const { output: finalOutput } = await finalResponsePrompt(
+            const { output: finalOutput } = await getFinalResponsePrompt()(
                 { userQuery, toolResult: response.text },
                 { model: config.ai.model, config: { maxOutputTokens: config.ai.maxOutputTokens } }
             );
@@ -231,10 +232,10 @@ export const universalChatFlow = ai.defineFlow(
         return finalResponse;
 
     } catch (e: unknown) {
-        const errorMessage = getErrorMessage(e);
+        const errorMessage = getErrorMessage(e) ?? '';
         logError(e, { context: `Universal Chat Flow failed for query: "${userQuery}"` });
 
-        if (errorMessage.includes('503') || errorMessage.includes('unavailable') || errorMessage.includes('timed out')) {
+        if (errorMessage && (errorMessage.includes('503') || errorMessage.includes('unavailable') || errorMessage.includes('timed out'))) {
              return {
                 response: `I'm sorry, but the AI service is currently unavailable or took too long to respond. This may be a temporary issue. Please try again in a few moments.`,
                 data: null,

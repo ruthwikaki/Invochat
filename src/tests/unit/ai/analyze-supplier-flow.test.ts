@@ -11,17 +11,17 @@ vi.mock('@/config/app-config', () => ({
 
 // ✅ CORRECT: Create mocks INSIDE the factory
 vi.mock('@/ai/genkit', () => {
-  const mockPromptFunction = vi.fn();
+  // Create the mock functions inside the factory to avoid hoisting issues
   return {
     ai: {
-      definePrompt: vi.fn(() => mockPromptFunction),
+      definePrompt: vi.fn(),
       defineFlow: vi.fn((config, implementation) => implementation),
       defineTool: vi.fn((config, implementation) => implementation),
     },
   };
 });
 
-// NOW we can safely import the flows
+// Import after mocking
 import { analyzeSuppliersFlow, getSupplierAnalysisTool } from '@/ai/flows/analyze-supplier-flow';
 import * as database from '@/services/database';
 import { ai } from '@/ai/genkit';
@@ -52,13 +52,16 @@ const mockPerformanceData: SupplierPerformanceReport[] = [
 ];
 
 describe('Analyze Supplier Flow', () => {
-  let mockPrompt: any;
+  let mockPromptFn: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Get the mock prompt function and set its behavior
-    mockPrompt = (ai.definePrompt as any)();
-    mockPrompt.mockResolvedValue({
+    
+    mockPromptFn = vi.fn();
+    (ai.definePrompt as vi.Mock).mockReturnValue(mockPromptFn);
+
+    // Set up the default mock prompt response
+    mockPromptFn.mockResolvedValue({
       output: {
         analysis: "Mock supplier analysis",
         bestSupplier: "Best Mock Supplier"
@@ -73,7 +76,7 @@ describe('Analyze Supplier Flow', () => {
     const result = await analyzeSuppliersFlow(input);
 
     expect(database.getSupplierPerformanceFromDB).toHaveBeenCalledWith(input.companyId);
-    expect(mockPrompt).toHaveBeenCalled();
+    expect(mockPromptFn).toHaveBeenCalled();
     expect(result.bestSupplier).toBe('Best Mock Supplier');
     expect(result.analysis).toBe('Mock supplier analysis');
     expect(result.performanceData).toEqual(mockPerformanceData);
@@ -88,13 +91,14 @@ describe('Analyze Supplier Flow', () => {
     expect(result.analysis).toContain('not enough data');
     expect(result.bestSupplier).toBe('N/A');
     expect(result.performanceData).toEqual([]);
+    expect(mockPromptFn).not.toHaveBeenCalled();
   });
 
   it('should throw an error if the AI analysis fails', async () => {
     (database.getSupplierPerformanceFromDB as vi.Mock).mockResolvedValue(mockPerformanceData);
     
     // Override the mock for this specific test
-    mockPrompt.mockResolvedValueOnce({ output: null });
+    mockPromptFn.mockResolvedValueOnce({ output: null });
 
     const input = { companyId: 'test-company-id' };
 

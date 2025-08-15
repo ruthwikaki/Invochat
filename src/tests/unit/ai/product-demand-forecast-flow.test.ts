@@ -3,10 +3,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@/services/database');
 vi.mock('@/lib/error-handler');
-vi.mock('@/lib/utils', () => ({
-  linearRegression: vi.fn(() => ({ slope: 5, intercept: 100 })),
-  differenceInDays: vi.fn(() => 1)
-}));
+vi.mock('@/lib/utils', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@/lib/utils')>();
+    return {
+        ...actual,
+        linearRegression: vi.fn(() => ({ slope: 5, intercept: 100 })),
+    }
+});
 vi.mock('@/config/app-config', () => ({
   config: { ai: { model: 'mock-model' } }
 }));
@@ -28,12 +31,15 @@ import * as utils from '@/lib/utils';
 import { ai } from '@/ai/genkit';
 
 describe('Product Demand Forecast Flow', () => {
-    let mockPrompt: any;
+  let mockPromptFn: any;
+
   beforeEach(() => {
     vi.clearAllMocks();
     
-    mockPrompt = (ai.definePrompt as any)();
-    mockPrompt.mockResolvedValue({
+    mockPromptFn = vi.fn();
+    (ai.definePrompt as vi.Mock).mockReturnValue(mockPromptFn);
+
+    mockPromptFn.mockResolvedValue({
       output: {
         confidence: 'High',
         analysis: "Mock demand forecast insights",

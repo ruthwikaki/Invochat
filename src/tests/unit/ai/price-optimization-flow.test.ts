@@ -23,12 +23,15 @@ import * as database from '@/services/database';
 import { ai } from '@/ai/genkit';
 
 describe('Price Optimization Flow', () => {
-  let mockPrompt: any;
+  let mockPromptFn: any;
+
   beforeEach(() => {
     vi.clearAllMocks();
     
-    mockPrompt = (ai.definePrompt as any)();
-    mockPrompt.mockResolvedValue({
+    mockPromptFn = vi.fn();
+    (ai.definePrompt as vi.Mock).mockReturnValue(mockPromptFn);
+
+    mockPromptFn.mockResolvedValue({
       output: {
         suggestions: [{ sku: 'TEST-001', currentPrice: 1000, suggestedPrice: 1200 }],
         analysis: "Mock price optimization analysis"
@@ -45,7 +48,7 @@ describe('Price Optimization Flow', () => {
     const result = await priceOptimizationFlow(input);
 
     expect(database.getUnifiedInventoryFromDB).toHaveBeenCalledWith(input.companyId, { limit: 50 });
-    expect(mockPrompt).toHaveBeenCalled();
+    expect(mockPromptFn).toHaveBeenCalled();
     expect(result.suggestions).toHaveLength(1);
   });
 

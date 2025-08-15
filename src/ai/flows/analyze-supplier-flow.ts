@@ -77,7 +77,8 @@ export const analyzeSuppliersFlow = ai.defineFlow(
       };
     } catch (e) {
       logError(e, { context: `[Analyze Supplier Flow] Failed for company ${companyId}` });
-      throw new Error("An error occurred while analyzing supplier performance.");
+      if (e instanceof Error) throw e;
+      throw new Error("An unknown error occurred while analyzing supplier performance.");
     }
   }
 );

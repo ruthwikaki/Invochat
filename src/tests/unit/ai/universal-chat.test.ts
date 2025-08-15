@@ -10,7 +10,6 @@ vi.mock('@/services/database');
 vi.mock('@/config/app-config', () => ({
   config: { 
       ai: { model: 'mock-model', maxOutputTokens: 1024 },
-      ratelimit: { ai: 100 }
     }
 }));
 
@@ -37,10 +36,12 @@ vi.mock('@/ai/flows/analytics-tools', () => ({
 
 // Fix: Create mock functions INSIDE the factory
 vi.mock('@/ai/genkit', () => {
+  const promptFn = vi.fn();
   return {
     ai: {
-      defineFlow: vi.fn((config, implementation) => implementation),
-      definePrompt: vi.fn(),
+      defineFlow: vi.fn((_, impl) => impl),
+      defineTool: vi.fn(),
+      definePrompt: vi.fn(() => promptFn),
       generate: vi.fn(),
     },
   };
@@ -70,12 +71,9 @@ describe('Universal Chat Flow', () => {
     let mockPromptFn: any;
 
     beforeEach(() => {
-        vi.resetAllMocks();
+        vi.clearAllMocks();
         vi.spyOn(redis, 'isRedisEnabled', 'get').mockReturnValue(false);
-
-        // This needs to be set up fresh for each test
-        mockPromptFn = vi.fn().mockResolvedValue({ output: mockFinalResponse });
-        (ai.definePrompt as vi.Mock).mockReturnValue(mockPromptFn);
+        mockPromptFn = (ai.definePrompt as any).mock.results[0].value;
     });
 
     it('should call a tool and format the final response', async () => {
@@ -83,6 +81,8 @@ describe('Universal Chat Flow', () => {
             toolRequests: [{ name: 'getReorderSuggestions', input: { companyId: mockCompanyId } }],
             text: ''
         });
+        
+        mockPromptFn.mockResolvedValue({ output: mockFinalResponse });
 
         const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory as any };
         const result = await universalChatFlow(input);
@@ -99,6 +99,8 @@ describe('Universal Chat Flow', () => {
             toolRequests: [],
         });
         
+        mockPromptFn.mockResolvedValue({ output: { response: "I cannot help with that." } });
+
         const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory as any };
         await universalChatFlow(input);
         

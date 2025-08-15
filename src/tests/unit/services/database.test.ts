@@ -3,8 +3,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getDashboardMetrics } from '@/services/database';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { DashboardMetricsSchema } from '@/types';
+import { randomUUID } from 'crypto';
 
-// Mock the Supabase admin client
+// Mock the Supabase client
 vi.mock('@/lib/supabase/admin');
 vi.mock('@/lib/error-handler');
 
@@ -18,7 +19,7 @@ const mockDashboardData = {
   customers_change: 2.1,
   dead_stock_value: 5000,
   sales_over_time: [{ date: '2024-01-01T00:00:00Z', revenue: 5000 }],
-  top_products: [{ product_id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890', product_name: 'Test Product', total_revenue: 20000, image_url: null, quantity_sold: 10 }],
+  top_products: [{ product_id: randomUUID(), product_name: 'Test Product', total_revenue: 20000, image_url: null, quantity_sold: 10 }],
   inventory_summary: {
     total_value: 200000,
     in_stock_value: 150000,
