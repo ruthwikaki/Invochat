@@ -1,10 +1,22 @@
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { Mock } from 'vitest';
 
 vi.mock('@/services/database');
 vi.mock('@/lib/error-handler');
 vi.mock('@/config/app-config', () => ({
   config: { ai: { model: 'mock-model' } }
 }));
+
+vi.mock('@/ai/genkit', () => {
+  return {
+    ai: {
+      definePrompt: vi.fn(() => vi.fn()),
+      defineFlow: vi.fn((_config, implementation) => implementation),
+      defineTool: vi.fn((_config, implementation) => implementation),
+    },
+  };
+});
 
 // Partially mock lib/utils to mock one function but keep others
 vi.mock('@/lib/utils', async (importOriginal) => {
@@ -16,16 +28,21 @@ vi.mock('@/lib/utils', async (importOriginal) => {
 });
 
 import * as database from '@/services/database';
+import { productDemandForecastFlow } from '@/ai/flows/product-demand-forecast-flow';
+import { linearRegression } from '@/lib/utils';
+import { ai } from '@/ai/genkit';
+
 
 describe('Product Demand Forecast Flow', () => {
+  let mockPromptFn: Mock;
 
   beforeEach(() => {
-    vi.resetModules();
     vi.clearAllMocks();
+    mockPromptFn = (ai.definePrompt as Mock).mock.results[0].value;
   });
 
   it('should forecast demand for a product with sufficient sales data', async () => {
-    const mockPromptFn = vi.fn().mockResolvedValue({
+    mockPromptFn.mockResolvedValue({
       output: {
           confidence: 'High',
           analysis: "Mock demand forecast insights",
@@ -33,19 +50,13 @@ describe('Product Demand Forecast Flow', () => {
       }
     });
     
-    vi.doMock('@/ai/genkit', () => ({
-        ai: {
-            definePrompt: vi.fn().mockReturnValue(mockPromptFn),
-            defineFlow: vi.fn((_config, implementation) => implementation),
-            defineTool: vi.fn((_, impl) => impl),
-        }
+    const mockSalesData = Array.from({ length: 10 }, (_, i) => ({ 
+      sale_date: `2024-01-${String(i+1).padStart(2,'0')}`, 
+      total_quantity: 100 + i 
     }));
     
-    const mockSalesData = Array.from({ length: 10 }, (_, i) => ({ sale_date: `2024-01-${String(i+1).padStart(2,'0')}`, total_quantity: 100 + i }));
-    (database.getHistoricalSalesForSingleSkuFromDB as vi.Mock).mockResolvedValue(mockSalesData);
-    
-    const { productDemandForecastFlow } = await import('@/ai/flows/product-demand-forecast-flow');
-    const { linearRegression } = await import('@/lib/utils');
+    (database.getHistoricalSalesForSingleSkuFromDB as Mock)
+      .mockResolvedValue(mockSalesData);
 
     const input = { companyId: 'test-company-id', sku: 'SKU001', daysToForecast: 30 };
     const result = await productDemandForecastFlow(input);
@@ -54,27 +65,21 @@ describe('Product Demand Forecast Flow', () => {
     expect(linearRegression).toHaveBeenCalled();
     expect(result.confidence).toBe('High');
     expect(result.analysis).toBe('Mock demand forecast insights');
+    expect(result.trend).toBe('Upward');
     expect(mockPromptFn).toHaveBeenCalled();
   });
 
   it('should return a low confidence forecast for insufficient data', async () => {
-     vi.doMock('@/ai/genkit', () => ({
-        ai: {
-            defineFlow: vi.fn((_config, implementation) => implementation),
-            defineTool: vi.fn(),
-            definePrompt: vi.fn(),
-        }
-    }));
+    (database.getHistoricalSalesForSingleSkuFromDB as Mock)
+      .mockResolvedValue([]);
+    const { linearRegression: lrMock } = await import('@/lib/utils');
 
-    (database.getHistoricalSalesForSingleSkuFromDB as vi.Mock).mockResolvedValue([]);
-    const { productDemandForecastFlow } = await import('@/ai/flows/product-demand-forecast-flow');
-    const { linearRegression } = await import('@/lib/utils');
 
     const input = { companyId: 'test-company-id', sku: 'SKU001', daysToForecast: 30 };
     const result = await productDemandForecastFlow(input);
 
     expect(result.confidence).toBe('Low');
     expect(result.analysis).toContain('not enough historical sales data');
-    expect(linearRegression).not.toHaveBeenCalled();
+    expect(lrMock).not.toHaveBeenCalled();
   });
 });
