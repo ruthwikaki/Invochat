@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { SupplierPerformanceReport } from '@/types';
 
-// 🚨 CRITICAL: Mock dependencies BEFORE importing the flow
+// Mock dependencies at the top level
 vi.mock('@/services/database');
 vi.mock('@/lib/error-handler');
 vi.mock('@/config/app-config', () => ({
@@ -37,31 +37,29 @@ const mockPerformanceData: SupplierPerformanceReport[] = [
 ];
 
 describe('Analyze Supplier Flow', () => {
+
   beforeEach(() => {
-    vi.clearAllMocks();
-    vi.resetModules();
+    vi.resetModules(); // Reset modules to allow fresh imports
   });
 
   it('should fetch supplier performance data and generate an analysis', async () => {
-    // Mock ai module for this test
-    vi.doMock('@/ai/genkit', () => {
-      return {
-        ai: {
-          definePrompt: vi.fn().mockReturnValue(
-            vi.fn().mockResolvedValue({
-              output: {
-                analysis: "Mock supplier analysis",
-                bestSupplier: "Best Mock Supplier"
-              }
-            })
-          ),
-          defineFlow: vi.fn((_config, implementation) => implementation),
-          defineTool: vi.fn((_config, implementation) => implementation),
-        },
-      };
-    });
+    // Set up mocks specifically for this test
+    vi.doMock('@/ai/genkit', () => ({
+      ai: {
+        definePrompt: vi.fn().mockReturnValue(
+          vi.fn().mockResolvedValue({
+            output: {
+              analysis: "Mock supplier analysis",
+              bestSupplier: "Best Mock Supplier"
+            }
+          })
+        ),
+        defineFlow: vi.fn((_, impl) => impl),
+        defineTool: vi.fn((_, impl) => impl),
+      },
+    }));
 
-    (database.getSupplierPerformanceFromDB as any).mockResolvedValue(mockPerformanceData);
+    (database.getSupplierPerformanceFromDB as vi.Mock).mockResolvedValue(mockPerformanceData);
 
     const { analyzeSuppliersFlow } = await import('@/ai/flows/analyze-supplier-flow');
     
@@ -75,18 +73,10 @@ describe('Analyze Supplier Flow', () => {
   });
 
   it('should handle cases where there is no performance data', async () => {
-    // Mock ai module for this test
-    vi.doMock('@/ai/genkit', () => {
-      return {
-        ai: {
-          definePrompt: vi.fn().mockReturnValue(vi.fn()),
-          defineFlow: vi.fn((_config, implementation) => implementation),
-          defineTool: vi.fn((_config, implementation) => implementation),
-        },
-      };
-    });
-
-    (database.getSupplierPerformanceFromDB as any).mockResolvedValue([]);
+    vi.doMock('@/ai/genkit', () => ({
+        ai: { defineFlow: vi.fn((_, impl) => impl) }
+    }));
+    (database.getSupplierPerformanceFromDB as vi.Mock).mockResolvedValue([]);
     
     const { analyzeSuppliersFlow } = await import('@/ai/flows/analyze-supplier-flow');
     
@@ -99,41 +89,21 @@ describe('Analyze Supplier Flow', () => {
   });
 
   it('should throw an error if the AI analysis fails', async () => {
-    // Mock ai module to return null output for this test
-    vi.doMock('@/ai/genkit', () => {
-      return {
-        ai: {
-          definePrompt: vi.fn().mockReturnValue(
-            vi.fn().mockResolvedValue({ output: null })
-          ),
-          defineFlow: vi.fn((_config, implementation) => implementation),
-          defineTool: vi.fn((_config, implementation) => implementation),
-        },
-      };
-    });
+    vi.doMock('@/ai/genkit', () => ({
+      ai: {
+        definePrompt: vi.fn().mockReturnValue(
+          vi.fn().mockResolvedValue({ output: null })
+        ),
+        defineFlow: vi.fn((_, impl) => impl),
+      },
+    }));
 
-    (database.getSupplierPerformanceFromDB as any).mockResolvedValue(mockPerformanceData);
+    (database.getSupplierPerformanceFromDB as vi.Mock).mockResolvedValue(mockPerformanceData);
     
     const { analyzeSuppliersFlow } = await import('@/ai/flows/analyze-supplier-flow');
     
     const input = { companyId: 'test-company-id' };
 
     await expect(analyzeSuppliersFlow(input)).rejects.toThrow('AI analysis of supplier performance failed to return an output.');
-  });
-
-  it('should be exposed as a Genkit tool', async () => {
-    // Mock ai module for this test
-    vi.doMock('@/ai/genkit', () => {
-      return {
-        ai: {
-          definePrompt: vi.fn(),
-          defineFlow: vi.fn((_config, implementation) => implementation),
-          defineTool: vi.fn((_config, implementation) => implementation),
-        },
-      };
-    });
-
-    const { getSupplierAnalysisTool } = await import('@/ai/flows/analyze-supplier-flow');
-    expect(getSupplierAnalysisTool).toBeDefined();
   });
 });

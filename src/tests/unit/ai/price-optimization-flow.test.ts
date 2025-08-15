@@ -10,7 +10,6 @@ import * as database from '@/services/database';
 
 describe('Price Optimization Flow', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.resetModules();
   });
 
@@ -26,7 +25,6 @@ describe('Price Optimization Flow', () => {
                 })
             ),
             defineFlow: vi.fn((_config, implementation) => implementation),
-            defineTool: vi.fn((_config, implementation) => implementation),
         }
     }));
     
@@ -47,9 +45,7 @@ describe('Price Optimization Flow', () => {
   it('should handle no inventory data', async () => {
      vi.doMock('@/ai/genkit', () => ({
         ai: {
-            definePrompt: vi.fn().mockReturnValue(vi.fn()),
             defineFlow: vi.fn((_config, implementation) => implementation),
-            defineTool: vi.fn((_config, implementation) => implementation),
         }
     }));
 

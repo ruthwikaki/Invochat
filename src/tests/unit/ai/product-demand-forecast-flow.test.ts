@@ -2,22 +2,23 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@/services/database');
 vi.mock('@/lib/error-handler');
-vi.mock('@/lib/utils', async (importOriginal) => {
-    const actual = await importOriginal() as any;
-    return {
-        ...actual,
-        linearRegression: vi.fn(() => ({ slope: 5, intercept: 100 })),
-    };
-});
 vi.mock('@/config/app-config', () => ({
   config: { ai: { model: 'mock-model' } }
 }));
+
+// Partially mock lib/utils to mock one function but keep others
+vi.mock('@/lib/utils', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@/lib/utils')>();
+    return {
+        ...actual, // Keep original implementations for other functions
+        linearRegression: vi.fn(() => ({ slope: 5, intercept: 100 })),
+    };
+});
 
 import * as database from '@/services/database';
 
 describe('Product Demand Forecast Flow', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.resetModules();
   });
 
@@ -34,7 +35,6 @@ describe('Product Demand Forecast Flow', () => {
                 })
             ),
             defineFlow: vi.fn((_config, implementation) => implementation),
-            defineTool: vi.fn((_config, implementation) => implementation),
         }
     }));
     
@@ -56,16 +56,13 @@ describe('Product Demand Forecast Flow', () => {
   it('should return a low confidence forecast for insufficient data', async () => {
      vi.doMock('@/ai/genkit', () => ({
         ai: {
-            definePrompt: vi.fn().mockReturnValue(vi.fn()),
             defineFlow: vi.fn((_config, implementation) => implementation),
-            defineTool: vi.fn((_config, implementation) => implementation),
         }
     }));
 
     (database.getHistoricalSalesForSingleSkuFromDB as vi.Mock).mockResolvedValue([]);
     const { productDemandForecastFlow } = await import('@/ai/flows/product-demand-forecast-flow');
     const { linearRegression } = await import('@/lib/utils');
-
 
     const input = { companyId: 'test-company-id', sku: 'SKU001', daysToForecast: 30 };
     const result = await productDemandForecastFlow(input);
