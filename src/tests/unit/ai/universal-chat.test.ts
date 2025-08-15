@@ -1,3 +1,4 @@
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@/lib/redis');
@@ -47,6 +48,7 @@ vi.mock('@/ai/genkit', () => {
 import { universalChatFlow } from '@/ai/flows/universal-chat';
 import * as redis from '@/lib/redis';
 import { ai } from '@/ai/genkit';
+import { getErrorMessage } from '@/lib/error-handler';
 
 const mockUserQuery = 'What should I reorder?';
 const mockCompanyId = 'test-company-id';

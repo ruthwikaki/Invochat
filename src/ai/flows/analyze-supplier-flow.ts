@@ -21,15 +21,18 @@ const SupplierAnalysisOutputSchema = z.object({
   performanceData: z.array(z.custom<SupplierPerformanceReport>()),
 });
 
-const supplierAnalysisPrompt = ai.definePrompt({
-  name: 'supplierAnalysisPrompt',
-  input: {
-    schema: z.object({ performanceData: z.array(z.custom<SupplierPerformanceReport>()) }),
-  },
-  output: {
-    schema: SupplierAnalysisOutputSchema.omit({ performanceData: true }),
-  },
-  prompt: `
+let _supplierAnalysisPrompt: any;
+const getSupplierAnalysisPrompt = () => {
+  if (!_supplierAnalysisPrompt) {
+    _supplierAnalysisPrompt = ai.definePrompt({
+      name: 'supplierAnalysisPrompt',
+      input: {
+        schema: z.object({ performanceData: z.array(z.custom<SupplierPerformanceReport>()) }),
+      },
+      output: {
+        schema: SupplierAnalysisOutputSchema.omit({ performanceData: true }),
+      },
+      prompt: `
     You are an expert supply chain analyst. You have been given a list of supplier performance reports based on the sales performance of their products. Your task is to analyze this data and provide a recommendation for the most valuable supplier.
 
     **Supplier Performance Data:**
@@ -44,7 +47,11 @@ const supplierAnalysisPrompt = ai.definePrompt({
     3.  **Summarize:** Write a concise, 1-2 sentence summary explaining your choice. For example: "While Supplier B provides more products, Supplier A is recommended due to their significantly higher average profit margin (45%) and excellent sell-through rate, making them your most profitable partner."
     4.  **Format:** Provide your response in the specified JSON format.
   `,
-});
+    });
+  }
+  return _supplierAnalysisPrompt;
+};
+
 
 export const analyzeSuppliersFlow = ai.defineFlow(
   {
@@ -66,7 +73,7 @@ export const analyzeSuppliersFlow = ai.defineFlow(
       }
 
       // Step 2: Pass the data to the AI for analysis and recommendation.
-      const { output } = await supplierAnalysisPrompt({ performanceData }, { model: config.ai.model });
+      const { output } = await getSupplierAnalysisPrompt()({ performanceData }, { model: config.ai.model });
       if (!output) {
         throw new Error("AI analysis of supplier performance failed to return an output.");
       }

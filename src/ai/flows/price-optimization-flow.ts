@@ -28,22 +28,25 @@ const PriceOptimizationOutputSchema = z.object({
   analysis: z.string().describe("A high-level summary of the pricing strategy and observations."),
 });
 
-const suggestPricesPrompt = ai.definePrompt({
-  name: 'suggestPricesPrompt',
-  input: {
-    schema: z.object({
-      products: z.array(z.object({
-          sku: z.string(),
-          name: z.string(),
-          cost: z.number(),
-          price: z.number(),
-          inventory_quantity: z.number(),
-          sales_last_30_days: z.number(),
-      })),
-    }),
-  },
-  output: { schema: PriceOptimizationOutputSchema },
-  prompt: `
+let _suggestPricesPrompt: any;
+const getSuggestPricesPrompt = () => {
+  if (!_suggestPricesPrompt) {
+    _suggestPricesPrompt = ai.definePrompt({
+      name: 'suggestPricesPrompt',
+      input: {
+        schema: z.object({
+          products: z.array(z.object({
+              sku: z.string(),
+              name: z.string(),
+              cost: z.number(),
+              price: z.number(),
+              inventory_quantity: z.number(),
+              sales_last_30_days: z.number(),
+          })),
+        }),
+      },
+      output: { schema: PriceOptimizationOutputSchema },
+      prompt: `
     You are an expert e-commerce pricing analyst. Your task is to analyze a list of products and suggest price optimizations to maximize overall profit, not just revenue. Prices and costs are in cents.
 
     Product List with sales context:
@@ -61,7 +64,10 @@ const suggestPricesPrompt = ai.definePrompt({
     3.  **Provide a Summary:** Write a 1-2 sentence high-level analysis of your overall pricing strategy.
     4.  **Format:** Provide your response in the specified JSON format.
   `,
-});
+    });
+  }
+  return _suggestPricesPrompt;
+};
 
 export const priceOptimizationFlow = ai.defineFlow(
   {
@@ -106,7 +112,7 @@ export const priceOptimizationFlow = ai.defineFlow(
         sales_last_30_days: salesMap.get(p.sku) || 0,
       }));
 
-      const { output } = await suggestPricesPrompt({ products: productSubsetForAI }, { model: config.ai.model });
+      const { output } = await getSuggestPricesPrompt()({ products: productSubsetForAI }, { model: config.ai.model });
 
       if (!output) {
         throw new Error("AI failed to generate price suggestions.");

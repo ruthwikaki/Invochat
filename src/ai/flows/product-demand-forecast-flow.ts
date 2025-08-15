@@ -26,18 +26,21 @@ const ForecastOutputSchema = z.object({
   trend: z.enum(['Upward', 'Downward', 'Stable']).describe("The detected sales trend."),
 });
 
-const generateForecastAnalysisPrompt = ai.definePrompt({
-  name: 'generateForecastAnalysisPrompt',
-  input: { schema: z.object({
-    sku: z.string(),
-    daysToForecast: z.number(),
-    slope: z.number(),
-    intercept: z.number(),
-    dataPointCount: z.number(),
-    forecastedDemand: z.number(),
-  }) },
-  output: { schema: ForecastOutputSchema.omit({ sku: true, forecastedDemand: true }) },
-  prompt: `
+let _generateForecastAnalysisPrompt: any;
+const getGenerateForecastAnalysisPrompt = () => {
+  if (!_generateForecastAnalysisPrompt) {
+    _generateForecastAnalysisPrompt = ai.definePrompt({
+      name: 'generateForecastAnalysisPrompt',
+      input: { schema: z.object({
+        sku: z.string(),
+        daysToForecast: z.number(),
+        slope: z.number(),
+        intercept: z.number(),
+        dataPointCount: z.number(),
+        forecastedDemand: z.number(),
+      }) },
+      output: { schema: ForecastOutputSchema.omit({ sku: true, forecastedDemand: true }) },
+      prompt: `
     You are an expert inventory analyst. You have performed a linear regression on historical sales data for a product. Your task is to interpret the results and create a user-friendly forecast.
 
     **Product SKU:** {{{sku}}}
@@ -67,7 +70,10 @@ const generateForecastAnalysisPrompt = ai.definePrompt({
 
     Provide your response in the specified JSON format.
   `,
-});
+    });
+  }
+  return _generateForecastAnalysisPrompt;
+};
 
 export const productDemandForecastFlow = ai.defineFlow(
   {
@@ -108,7 +114,7 @@ export const productDemandForecastFlow = ai.defineFlow(
       
       const roundedForecast = Math.round(forecastedDemand);
 
-      const { output } = await generateForecastAnalysisPrompt({
+      const { output } = await getGenerateForecastAnalysisPrompt()({
         sku,
         daysToForecast,
         slope,
