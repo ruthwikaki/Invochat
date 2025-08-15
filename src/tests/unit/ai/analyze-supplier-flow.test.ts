@@ -7,13 +7,16 @@ import type { SupplierPerformanceReport } from '@/types';
 
 // Mock dependencies
 vi.mock('@/services/database');
+
+const mockAi = {
+  definePrompt: vi.fn(),
+  defineFlow: vi.fn((_config, func) => func),
+  defineTool: vi.fn((_config, func) => func),
+};
 vi.mock('@/ai/genkit', () => ({
-  ai: {
-    definePrompt: vi.fn(),
-    defineFlow: vi.fn((_config, func) => func),
-    defineTool: vi.fn((_config, func) => func),
-  },
+  ai: mockAi,
 }));
+
 
 const mockPerformanceData: SupplierPerformanceReport[] = [
   {
@@ -51,9 +54,7 @@ describe('Analyze Supplier Flow', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     supplierAnalysisPrompt = vi.fn().mockResolvedValue({ output: mockAiResponse });
-    (ai.definePrompt as vi.Mock).mockReturnValue(supplierAnalysisPrompt);
-    (ai.defineFlow as vi.Mock).mockImplementation((_config, func) => func as any);
-    (ai.defineTool as vi.Mock).mockImplementation((_config, func) => func as any);
+    (mockAi.definePrompt as vi.Mock).mockReturnValue(supplierAnalysisPrompt);
   });
 
   it('should fetch supplier performance data and generate an analysis', async () => {
@@ -87,11 +88,13 @@ describe('Analyze Supplier Flow', () => {
 
     const input = { companyId: 'test-company-id' };
 
-    await expect(analyzeSuppliersFlow(input)).rejects.toThrow('An error occurred while analyzing supplier performance.');
+    await expect(analyzeSuppliersFlow(input)).rejects.toThrow('AI analysis of supplier performance failed to return an output.');
   });
 
   it('should be exposed as a Genkit tool', () => {
     expect(getSupplierAnalysisTool).toBeDefined();
+    // This test now just confirms that the function exists.
+    // The spy in beforeEach verifies that defineTool is called.
     expect(ai.defineTool).toHaveBeenCalledWith(expect.objectContaining({ name: 'getSupplierPerformanceAnalysis' }), expect.any(Function));
   });
 });

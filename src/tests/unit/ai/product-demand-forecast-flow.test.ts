@@ -5,15 +5,17 @@ import * as database from '@/services/database';
 import { ai } from '@/ai/genkit';
 import * as utils from '@/lib/utils';
 
+const mockAi = {
+  definePrompt: vi.fn(),
+  defineFlow: vi.fn((_config, func) => func),
+  defineTool: vi.fn((_config, func) => func),
+};
+vi.mock('@/ai/genkit', () => ({
+  ai: mockAi,
+}));
 vi.mock('@/services/database');
 vi.mock('@/lib/utils');
-vi.mock('@/ai/genkit', () => ({
-  ai: {
-    definePrompt: vi.fn(),
-    defineFlow: vi.fn((_config, func) => func),
-    defineTool: vi.fn((_config, func) => func),
-  },
-}));
+
 
 const mockSalesData = [
     { sale_date: '2024-01-01T00:00:00Z', total_quantity: 10 },
@@ -37,7 +39,6 @@ describe('Product Demand Forecast Flow', () => {
         vi.resetAllMocks();
         generateForecastAnalysisPrompt = vi.fn().mockResolvedValue({ output: mockAiAnalysis });
         (ai.definePrompt as vi.Mock).mockReturnValue(generateForecastAnalysisPrompt);
-        (ai.defineFlow as vi.Mock).mockImplementation((_config, func) => func as any);
         (utils.linearRegression as vi.Mock).mockReturnValue({ slope: 1, intercept: 10 });
     });
 

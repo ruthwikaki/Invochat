@@ -4,14 +4,16 @@ import { priceOptimizationFlow } from '@/ai/flows/price-optimization-flow';
 import * as database from '@/services/database';
 import { ai } from '@/ai/genkit';
 
-vi.mock('@/services/database');
+const mockAi = {
+  definePrompt: vi.fn(),
+  defineFlow: vi.fn((_config, func) => func),
+  defineTool: vi.fn((_config, func) => func),
+};
 vi.mock('@/ai/genkit', () => ({
-  ai: {
-    definePrompt: vi.fn(),
-    defineFlow: vi.fn((_config, func) => func),
-    defineTool: vi.fn((_config, func) => func),
-  },
+  ai: mockAi,
 }));
+vi.mock('@/services/database');
+
 
 const mockInventory = {
   items: [
