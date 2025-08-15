@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
 import * as genkit from '@/ai/genkit';
 import * as redis from '@/lib/redis';
-import type { MessageData, GenerateResponse,ToolRequestPart } from 'genkit';
+import type { MessageData, GenerateResponse, ToolRequestPart } from 'genkit';
 
 vi.mock('@/ai/genkit');
 vi.mock('@/lib/redis');
@@ -71,8 +71,9 @@ describe('Universal Chat Flow', () => {
         generateMock = vi.fn();
         finalResponsePromptMock = vi.fn().mockResolvedValue({ output: mockFinalResponse });
 
-        vi.spyOn(genkit.ai, 'generate').mockImplementation(generateMock);
+        // Correctly mock the defineFlow to return a callable function
         vi.spyOn(genkit.ai, 'defineFlow').mockImplementation((_config, func) => func as any);
+        vi.spyOn(genkit.ai, 'generate').mockImplementation(generateMock);
         vi.spyOn(genkit.ai, 'definePrompt').mockImplementation(() => finalResponsePromptMock);
         vi.spyOn(redis, 'isRedisEnabled', 'get').mockReturnValue(false);
     });
@@ -87,7 +88,7 @@ describe('Universal Chat Flow', () => {
             tools: expect.any(Array),
         }));
         expect(finalResponsePromptMock).toHaveBeenCalledWith(
-            { userQuery: mockUserQuery, toolResult: { companyId: mockCompanyId } },
+            { userQuery: mockUserQuery, toolResult: { name: 'getReorderSuggestions', input: { companyId: 'test-company-id' } } },
             expect.anything()
         );
         expect(result.toolName).toBe('getReorderSuggestions');

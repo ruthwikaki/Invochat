@@ -3,15 +3,9 @@ import { getDashboardData } from '@/app/data-actions';
 import * as database from '@/services/database';
 import * as authHelpers from '@/lib/auth-helpers';
 
-// Mock the Supabase client
-vi.mock('@/lib/supabase/admin', () => ({
-  getServiceRoleClient: vi.fn(() => ({
-    rpc: vi.fn(),
-  })),
-}));
-
-vi.mock('@/lib/auth-helpers');
+// Mock dependencies
 vi.mock('@/services/database');
+vi.mock('@/lib/auth-helpers');
 
 const mockDashboardData = {
   total_revenue: 100000,
@@ -33,7 +27,7 @@ const mockDashboardData = {
 
 describe('Data Action: getDashboardData', () => {
   beforeEach(() => {
-    vi.clearAllMocks(); // Reset mocks before each test
+    vi.resetAllMocks();
      // Mock the auth context to always return a valid user/company
     (authHelpers.getAuthContext as any).mockResolvedValue({
         userId: 'test-user-id',
@@ -42,7 +36,7 @@ describe('Data Action: getDashboardData', () => {
   });
 
   it('should call getDashboardMetrics from the database service and return data', async () => {
-    // Arrange: Mock successful response
+    // Arrange: Mock successful response from the database service
     (database.getDashboardMetrics as any).mockResolvedValue(mockDashboardData);
 
     // Act
@@ -57,7 +51,7 @@ describe('Data Action: getDashboardData', () => {
   it('should return null if the database call fails', async () => {
     const dbError = new Error('Database connection error');
     
-    // Arrange: Mock rejected response
+    // Arrange: Mock rejected response from the database service
     (database.getDashboardMetrics as any).mockRejectedValue(dbError);
     
     // Act

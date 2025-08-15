@@ -9,8 +9,8 @@ vi.mock('@/services/database');
 vi.mock('@/ai/genkit', () => ({
   ai: {
     definePrompt: vi.fn(() => vi.fn()),
-    defineFlow: vi.fn((_config, func) => func), // Immediately return the flow function
-    defineTool: vi.fn((_config, func) => func),
+    defineFlow: vi.fn((_config, func) => func),
+    defineTool: vi.fn((_config, func) => func), // Correctly mock defineTool
   },
 }));
 
@@ -93,5 +93,11 @@ describe('Analyze Supplier Flow', () => {
     const input = { companyId: 'test-company-id' };
 
     await expect(analyzeSuppliersFlow(input)).rejects.toThrow('An error occurred while analyzing supplier performance.');
+  });
+
+  it('should be exposed as a Genkit tool', () => {
+    expect(getSupplierAnalysisTool).toBeDefined();
+    // A simple check to ensure defineTool was called during module evaluation
+    expect(genkit.ai.defineTool).toHaveBeenCalledWith(expect.objectContaining({ name: 'getSupplierPerformanceAnalysis' }), expect.any(Function));
   });
 });
