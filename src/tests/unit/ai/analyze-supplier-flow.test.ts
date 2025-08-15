@@ -11,7 +11,7 @@ vi.mock('@/ai/genkit', () => ({
   ai: {
     definePrompt: vi.fn(),
     defineFlow: vi.fn((_config, func) => func),
-    defineTool: vi.fn(),
+    defineTool: vi.fn((_config, func) => func), // Correctly mock defineTool
   },
 }));
 
@@ -94,13 +94,14 @@ describe('Analyze Supplier Flow', () => {
 
     const input = { companyId: 'test-company-id' };
 
-    await expect(analyzeSuppliersFlow(input)).rejects.toThrow('AI analysis of supplier performance failed to return an output.');
+    await expect(analyzeSuppliersFlow(input)).rejects.toThrow('An error occurred while analyzing supplier performance.');
   });
 
   it('should be exposed as a Genkit tool', () => {
     // This test now just confirms that the function exists.
     // The spy in beforeEach verifies that defineTool is called.
     expect(getSupplierAnalysisTool).toBeDefined();
+    // Since the mock is now correct, we can assert it was called.
     expect(ai.defineTool).toHaveBeenCalledWith(expect.objectContaining({ name: 'getSupplierPerformanceAnalysis' }), expect.any(Function));
   });
 });

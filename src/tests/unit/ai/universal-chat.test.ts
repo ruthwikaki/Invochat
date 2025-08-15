@@ -3,9 +3,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
 import * as genkit from '@/ai/genkit';
 import * as redis from '@/lib/redis';
-import type { MessageData, GenerateResponse, ToolRequestPart } from 'genkit';
+import type { MessageData, GenerateResponse, ToolRequestPart, GenerateOptions } from 'genkit';
 
-vi.mock('@/ai/genkit');
+vi.mock('@/ai/genkit', () => ({
+  ai: {
+    defineFlow: vi.fn((config, func) => func),
+    definePrompt: vi.fn(),
+    generate: vi.fn(),
+  },
+}));
+
 vi.mock('@/lib/redis');
 
 const mockUserQuery = 'What should I reorder?';
@@ -64,28 +71,24 @@ const mockFinalResponse = {
 };
 
 describe('Universal Chat Flow', () => {
-    let generateMock: vi.Mock;
     let finalResponsePromptMock: vi.Mock;
 
     beforeEach(() => {
         vi.resetAllMocks();
-        generateMock = vi.fn();
         finalResponsePromptMock = vi.fn().mockResolvedValue({ output: mockFinalResponse });
 
-        // Correctly mock the defineFlow to return a callable function
         (genkit.ai.defineFlow as vi.Mock).mockImplementation((_config, func) => func as any);
-        (genkit.ai.generate as vi.Mock).mockImplementation(generateMock);
-        (genkit.ai.definePrompt as vi.Mock).mockImplementation(() => finalResponsePromptMock);
+        (genkit.ai.definePrompt as vi.Mock).mockReturnValue(finalResponsePromptMock);
         vi.spyOn(redis, 'isRedisEnabled', 'get').mockReturnValue(false);
     });
 
     it('should call a tool and format the final response', async () => {
-        generateMock.mockResolvedValue(mockToolResponse);
+        (genkit.ai.generate as vi.Mock).mockResolvedValue(mockToolResponse);
 
         const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory as any };
         const result = await universalChatFlow(input);
 
-        expect(generateMock).toHaveBeenCalledWith(expect.objectContaining({
+        expect(genkit.ai.generate).toHaveBeenCalledWith(expect.objectContaining({
             tools: expect.any(Array),
         }));
         expect(finalResponsePromptMock).toHaveBeenCalledWith(
@@ -97,7 +100,7 @@ describe('Universal Chat Flow', () => {
     });
 
     it('should handle a text-only response from the AI', async () => {
-        generateMock.mockResolvedValue(mockTextResponse);
+        (genkit.ai.generate as vi.Mock).mockResolvedValue(mockTextResponse);
 
         const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory as any };
         await universalChatFlow(input);
@@ -116,7 +119,7 @@ describe('Universal Chat Flow', () => {
         const result = await universalChatFlow(input);
 
         expect(redisGetMock).toHaveBeenCalled();
-        expect(generateMock).not.toHaveBeenCalled();
+        expect(genkit.ai.generate).not.toHaveBeenCalled();
         expect(result.response).toBe(mockFinalResponse.response);
     });
 });
