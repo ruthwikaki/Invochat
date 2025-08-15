@@ -4,21 +4,22 @@ vi.mock('@/services/database');
 vi.mock('@/lib/error-handler');
 vi.mock('@/lib/utils', () => ({
   linearRegression: vi.fn(() => ({ slope: 5, intercept: 100 })),
-  differenceInDays: vi.fn(() => 1), // Mock this utility
+  differenceInDays: vi.fn(() => 1),
 }));
 vi.mock('@/config/app-config', () => ({
   config: { ai: { model: 'mock-model' } }
 }));
 
-const mockPromptFunction = vi.fn();
-
-vi.mock('@/ai/genkit', () => ({
-  ai: {
-    definePrompt: vi.fn(() => mockPromptFunction),
-    defineFlow: vi.fn((config, implementation) => implementation),
-    defineTool: vi.fn((config, implementation) => implementation),
-  },
-}));
+// Fix: Create mock functions INSIDE the factory
+vi.mock('@/ai/genkit', () => {
+  return {
+    ai: {
+      definePrompt: vi.fn(),
+      defineFlow: vi.fn((config, implementation) => implementation),
+      defineTool: vi.fn((config, implementation) => implementation),
+    },
+  };
+});
 
 import { productDemandForecastFlow } from '@/ai/flows/product-demand-forecast-flow';
 import * as database from '@/services/database';
@@ -28,8 +29,9 @@ import { ai } from '@/ai/genkit';
 describe('Product Demand Forecast Flow', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    
-    mockPromptFunction.mockResolvedValue({
+
+    const mockPrompt = (ai.definePrompt as any)();
+    mockPrompt.mockResolvedValue({
       output: {
         confidence: 'High',
         analysis: "Mock demand forecast insights",

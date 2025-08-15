@@ -845,6 +845,7 @@ export async function getDashboardMetrics(companyId: string, period: string): Pr
         
         if (data == null) {
             logger.warn('[RPC Error] get_dashboard_metrics returned null. This can happen with no data.');
+            // Return a default, valid object that conforms to the schema
             return {
                 total_revenue: 0,
                 revenue_change: 0,
@@ -864,6 +865,7 @@ export async function getDashboardMetrics(companyId: string, period: string): Pr
             };
         }
         
+        // Ensure the data from the RPC conforms to the Zod schema before returning
         return DashboardMetricsSchema.parse(data);
     } catch (e) {
         logError(e, { context: 'getDashboardMetrics failed', companyId, period });
@@ -953,5 +955,3 @@ export async function getFeedbackFromDB(companyId: string, params: { query?: str
     if(error) throw error;
     return {items: FeedbackSchema.array().parse(data || []), totalCount: count || 0};
 }
-
-    
