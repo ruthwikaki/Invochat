@@ -1,3 +1,4 @@
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@/services/database');
@@ -10,7 +11,7 @@ vi.mock('@/config/app-config', () => ({
 vi.mock('@/lib/utils', async (importOriginal) => {
     const actual = await importOriginal<typeof import('@/lib/utils')>();
     return {
-        ...actual, // Keep original implementations for other functions
+        ...actual,
         linearRegression: vi.fn(() => ({ slope: 5, intercept: 100 })),
     };
 });
@@ -18,23 +19,26 @@ vi.mock('@/lib/utils', async (importOriginal) => {
 import * as database from '@/services/database';
 
 describe('Product Demand Forecast Flow', () => {
+
   beforeEach(() => {
     vi.resetModules();
+    vi.clearAllMocks();
   });
 
   it('should forecast demand for a product with sufficient sales data', async () => {
+    const mockPromptFn = vi.fn().mockResolvedValue({
+      output: {
+          confidence: 'High',
+          analysis: "Mock demand forecast insights",
+          trend: 'Upward'
+      }
+    });
+    
     vi.doMock('@/ai/genkit', () => ({
         ai: {
-            definePrompt: vi.fn().mockReturnValue(
-                vi.fn().mockResolvedValue({
-                    output: {
-                        confidence: 'High',
-                        analysis: "Mock demand forecast insights",
-                        trend: 'Upward'
-                    }
-                })
-            ),
+            definePrompt: vi.fn().mockReturnValue(mockPromptFn),
             defineFlow: vi.fn((_config, implementation) => implementation),
+            defineTool: vi.fn()
         }
     }));
     
@@ -51,12 +55,14 @@ describe('Product Demand Forecast Flow', () => {
     expect(linearRegression).toHaveBeenCalled();
     expect(result.confidence).toBe('High');
     expect(result.analysis).toBe('Mock demand forecast insights');
+    expect(mockPromptFn).toHaveBeenCalled();
   });
 
   it('should return a low confidence forecast for insufficient data', async () => {
      vi.doMock('@/ai/genkit', () => ({
         ai: {
             defineFlow: vi.fn((_config, implementation) => implementation),
+            defineTool: vi.fn()
         }
     }));
 

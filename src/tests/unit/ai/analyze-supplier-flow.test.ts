@@ -1,7 +1,8 @@
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { SupplierPerformanceReport } from '@/types';
 
-// Mock dependencies at the top level
+// 🚨 CRITICAL: Mock dependencies BEFORE importing the flow
 vi.mock('@/services/database');
 vi.mock('@/lib/error-handler');
 vi.mock('@/config/app-config', () => ({
@@ -39,11 +40,12 @@ const mockPerformanceData: SupplierPerformanceReport[] = [
 describe('Analyze Supplier Flow', () => {
 
   beforeEach(() => {
-    vi.resetModules(); // Reset modules to allow fresh imports
+    vi.resetModules();
+    vi.clearAllMocks();
   });
 
   it('should fetch supplier performance data and generate an analysis', async () => {
-    // Set up mocks specifically for this test
+    // Mock ai module for this specific test
     vi.doMock('@/ai/genkit', () => ({
       ai: {
         definePrompt: vi.fn().mockReturnValue(
@@ -59,14 +61,16 @@ describe('Analyze Supplier Flow', () => {
       },
     }));
 
-    (database.getSupplierPerformanceFromDB as vi.Mock).mockResolvedValue(mockPerformanceData);
+    (database.getSupplierPerformanceFromDB as any).mockResolvedValue(mockPerformanceData);
 
     const { analyzeSuppliersFlow } = await import('@/ai/flows/analyze-supplier-flow');
+    const { ai } = await import('@/ai/genkit');
     
     const input = { companyId: 'test-company-id' };
     const result = await analyzeSuppliersFlow(input);
 
     expect(database.getSupplierPerformanceFromDB).toHaveBeenCalledWith(input.companyId);
+    expect(ai.definePrompt().mock.results[0].value).toHaveBeenCalled();
     expect(result.bestSupplier).toBe('Best Mock Supplier');
     expect(result.analysis).toBe('Mock supplier analysis');
     expect(result.performanceData).toEqual(mockPerformanceData);
@@ -74,9 +78,13 @@ describe('Analyze Supplier Flow', () => {
 
   it('should handle cases where there is no performance data', async () => {
     vi.doMock('@/ai/genkit', () => ({
-        ai: { defineFlow: vi.fn((_, impl) => impl) }
+      ai: {
+        defineFlow: vi.fn((_, impl) => impl),
+        defineTool: vi.fn(), // Must mock defineTool even if not used directly
+      },
     }));
-    (database.getSupplierPerformanceFromDB as vi.Mock).mockResolvedValue([]);
+
+    (database.getSupplierPerformanceFromDB as any).mockResolvedValue([]);
     
     const { analyzeSuppliersFlow } = await import('@/ai/flows/analyze-supplier-flow');
     
@@ -92,18 +100,34 @@ describe('Analyze Supplier Flow', () => {
     vi.doMock('@/ai/genkit', () => ({
       ai: {
         definePrompt: vi.fn().mockReturnValue(
-          vi.fn().mockResolvedValue({ output: null })
+          vi.fn().mockResolvedValue({ output: null }) // Simulate AI returning null
         ),
         defineFlow: vi.fn((_, impl) => impl),
+        defineTool: vi.fn(),
       },
     }));
-
-    (database.getSupplierPerformanceFromDB as vi.Mock).mockResolvedValue(mockPerformanceData);
+    
+    (database.getSupplierPerformanceFromDB as any).mockResolvedValue(mockPerformanceData);
     
     const { analyzeSuppliersFlow } = await import('@/ai/flows/analyze-supplier-flow');
     
     const input = { companyId: 'test-company-id' };
 
     await expect(analyzeSuppliersFlow(input)).rejects.toThrow('AI analysis of supplier performance failed to return an output.');
+  });
+
+  it('should be exposed as a Genkit tool', async () => {
+     vi.doMock('@/ai/genkit', () => ({
+      ai: {
+        defineTool: vi.fn(),
+        defineFlow: vi.fn((_, impl) => impl),
+      },
+    }));
+    
+    const { getSupplierAnalysisTool } = await import('@/ai/flows/analyze-supplier-flow');
+    const { ai } = await import('@/ai/genkit');
+    
+    expect(ai.defineTool).toHaveBeenCalled();
+    expect(getSupplierAnalysisTool).toBeDefined();
   });
 });

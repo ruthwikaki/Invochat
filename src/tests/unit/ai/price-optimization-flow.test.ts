@@ -1,3 +1,4 @@
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@/services/database');
@@ -9,22 +10,25 @@ vi.mock('@/config/app-config', () => ({
 import * as database from '@/services/database';
 
 describe('Price Optimization Flow', () => {
+
   beforeEach(() => {
     vi.resetModules();
+    vi.clearAllMocks();
   });
 
   it('should fetch inventory and generate price suggestions', async () => {
+    const mockPromptFn = vi.fn().mockResolvedValue({
+        output: {
+            suggestions: [{ sku: 'TEST-001', currentPrice: 1000, suggestedPrice: 1200, productName: 'Test', reasoning: 'test', estimatedImpact: 'test' }],
+            analysis: "Mock price optimization analysis"
+        }
+    });
+
     vi.doMock('@/ai/genkit', () => ({
         ai: {
-            definePrompt: vi.fn().mockReturnValue(
-                vi.fn().mockResolvedValue({
-                    output: {
-                        suggestions: [{ sku: 'TEST-001', currentPrice: 1000, suggestedPrice: 1200, productName: 'Test', reasoning: 'test', estimatedImpact: 'test' }],
-                        analysis: "Mock price optimization analysis"
-                    }
-                })
-            ),
+            definePrompt: vi.fn().mockReturnValue(mockPromptFn),
             defineFlow: vi.fn((_config, implementation) => implementation),
+            defineTool: vi.fn()
         }
     }));
     
@@ -40,12 +44,14 @@ describe('Price Optimization Flow', () => {
     expect(database.getUnifiedInventoryFromDB).toHaveBeenCalledWith(input.companyId, { limit: 50 });
     expect(result.suggestions).toHaveLength(1);
     expect(result.analysis).toBe('Mock price optimization analysis');
+    expect(mockPromptFn).toHaveBeenCalled();
   });
 
   it('should handle no inventory data', async () => {
      vi.doMock('@/ai/genkit', () => ({
         ai: {
             defineFlow: vi.fn((_config, implementation) => implementation),
+            defineTool: vi.fn()
         }
     }));
 
