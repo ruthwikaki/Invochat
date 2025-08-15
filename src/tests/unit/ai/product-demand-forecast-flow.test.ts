@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@/services/database');
@@ -11,17 +10,15 @@ vi.mock('@/config/app-config', () => ({
   config: { ai: { model: 'mock-model' } }
 }));
 
-vi.mock('@/ai/genkit', () => {
-  const mockPromptFunction = vi.fn();
-  
-  return {
-    ai: {
-      definePrompt: vi.fn(() => mockPromptFunction),
-      defineFlow: vi.fn((config, implementation) => implementation),
-      defineTool: vi.fn((config, implementation) => implementation),
-    },
-  };
-});
+const mockPromptFunction = vi.fn();
+
+vi.mock('@/ai/genkit', () => ({
+  ai: {
+    definePrompt: vi.fn(() => mockPromptFunction),
+    defineFlow: vi.fn((config, implementation) => implementation),
+    defineTool: vi.fn((config, implementation) => implementation),
+  },
+}));
 
 import { productDemandForecastFlow } from '@/ai/flows/product-demand-forecast-flow';
 import * as database from '@/services/database';
@@ -32,8 +29,7 @@ describe('Product Demand Forecast Flow', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     
-    const mockPrompt = (ai.definePrompt as any)();
-    mockPrompt.mockResolvedValue({
+    mockPromptFunction.mockResolvedValue({
       output: {
         confidence: 'High',
         analysis: "Mock demand forecast insights",

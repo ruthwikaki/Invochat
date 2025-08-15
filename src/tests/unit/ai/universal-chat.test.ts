@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@/lib/redis');
@@ -29,17 +28,16 @@ vi.mock('@/ai/flows/analytics-tools', () => ({
     getPromotionalImpactAnalysis: vi.fn()
 }));
 
-vi.mock('@/ai/genkit', () => {
-  const mockPromptFunction = vi.fn();
-  const mockGenerate = vi.fn();
-  return {
-    ai: {
-      defineFlow: vi.fn((config, implementation) => implementation),
-      definePrompt: vi.fn(() => mockPromptFunction),
-      generate: mockGenerate,
-    },
-  };
-});
+const mockPromptFunction = vi.fn();
+const mockGenerate = vi.fn();
+
+vi.mock('@/ai/genkit', () => ({
+  ai: {
+    defineFlow: vi.fn((config, implementation) => implementation),
+    definePrompt: vi.fn(() => mockPromptFunction),
+    generate: mockGenerate,
+  },
+}));
 
 
 import { universalChatFlow } from '@/ai/flows/universal-chat';
@@ -73,14 +71,13 @@ describe('Universal Chat Flow', () => {
             toolRequests: [{ name: 'getReorderSuggestions', input: { companyId: mockCompanyId } }],
             text: ''
         });
-        const mockPrompt = (ai.definePrompt as any)();
-        mockPrompt.mockResolvedValue({ output: mockFinalResponse });
+        mockPromptFunction.mockResolvedValue({ output: mockFinalResponse });
 
         const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory as any };
         const result = await universalChatFlow(input);
 
         expect(ai.generate).toHaveBeenCalledWith(expect.anything());
-        expect(mockPrompt).toHaveBeenCalled();
+        expect(mockPromptFunction).toHaveBeenCalled();
         expect(result.toolName).toBe('getReorderSuggestions');
         expect(result.response).toContain('You should reorder these items.');
     });
@@ -90,13 +87,12 @@ describe('Universal Chat Flow', () => {
             text: 'I cannot help with that.',
             toolRequests: [],
         });
-        const mockPrompt = (ai.definePrompt as any)();
-        mockPrompt.mockResolvedValue({ output: { response: "I cannot help with that." } });
+        mockPromptFunction.mockResolvedValue({ output: { response: "I cannot help with that." } });
 
         const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory as any };
         await universalChatFlow(input);
         
-        expect(mockPrompt).toHaveBeenCalledWith(
+        expect(mockPromptFunction).toHaveBeenCalledWith(
             expect.objectContaining({ userQuery: mockUserQuery, toolResult: 'I cannot help with that.' }),
             expect.anything()
         );

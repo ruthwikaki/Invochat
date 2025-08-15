@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock dependencies first
@@ -8,17 +7,15 @@ vi.mock('@/config/app-config', () => ({
   config: { ai: { model: 'mock-model' } }
 }));
 
-vi.mock('@/ai/genkit', () => {
-  const mockPromptFunction = vi.fn();
-  
-  return {
-    ai: {
-      definePrompt: vi.fn(() => mockPromptFunction),
-      defineFlow: vi.fn((config, implementation) => implementation),
-      defineTool: vi.fn((config, implementation) => implementation),
-    },
-  };
-});
+const mockPromptFunction = vi.fn();
+
+vi.mock('@/ai/genkit', () => ({
+  ai: {
+    definePrompt: vi.fn(() => mockPromptFunction),
+    defineFlow: vi.fn((config, implementation) => implementation),
+    defineTool: vi.fn((config, implementation) => implementation),
+  },
+}));
 
 import { priceOptimizationFlow } from '@/ai/flows/price-optimization-flow';
 import * as database from '@/services/database';
@@ -28,8 +25,7 @@ describe('Price Optimization Flow', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     
-    const mockPrompt = (ai.definePrompt as any)();
-    mockPrompt.mockResolvedValue({
+    mockPromptFunction.mockResolvedValue({
       output: {
         suggestions: [{ sku: 'TEST-001', currentPrice: 1000, suggestedPrice: 1200, cost: 500 }],
         analysis: "Mock price optimization analysis"
