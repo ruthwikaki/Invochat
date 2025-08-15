@@ -1,8 +1,9 @@
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getDashboardMetrics } from '@/services/database';
-import { getServiceRoleClient } from '@/lib/supabase/admin';
+import * as admin from '@/lib/supabase/admin';
 
-// Mock the Supabase client
+// Mock the Supabase client at the module level
 const mockRpc = vi.fn();
 vi.mock('@/lib/supabase/admin', () => ({
   getServiceRoleClient: vi.fn(() => ({
@@ -11,25 +12,24 @@ vi.mock('@/lib/supabase/admin', () => ({
 }));
 
 const mockDashboardData = {
-  total_revenue: 100000,
-  revenue_change: 10.5,
-  total_orders: 50,
-  orders_change: 5.2,
-  new_customers: 10,
-  customers_change: 2.1,
-  dead_stock_value: 5000,
-  sales_over_time: [{ date: '2024-01-01', revenue: 5000 }],
-  top_products: [{ product_id: 'p1', product_name: 'Test Product', total_revenue: 20000, image_url: null, quantity_sold: 10 }],
-  inventory_summary: {
-    total_value: 200000,
-    in_stock_value: 150000,
-    low_stock_value: 30000,
-    dead_stock_value: 20000,
-  },
+    total_revenue: 100000,
+    revenue_change: 10.5,
+    total_orders: 50,
+    orders_change: 5.2,
+    new_customers: 10,
+    customers_change: 2.1,
+    dead_stock_value: 5000,
+    sales_over_time: [{ date: '2024-01-01', revenue: 5000 }],
+    top_products: [{ product_id: 'a7c9f8b1-3e2d-4c6f-9b1a-8c7d6e5f4g3h', product_name: 'Test Product', total_revenue: 20000, image_url: null, quantity_sold: 10 }],
+    inventory_summary: {
+      total_value: 200000,
+      in_stock_value: 150000,
+      low_stock_value: 30000,
+      dead_stock_value: 20000,
+    },
 };
 
 describe('Database Service - Business Logic', () => {
-
   beforeEach(() => {
     vi.clearAllMocks();
   });
