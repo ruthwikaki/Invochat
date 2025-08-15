@@ -69,5 +69,19 @@ describe('Database Service - Business Logic', () => {
       
       await expect(getDashboardMetrics('d1a3c5b9-2d7f-4b8e-9c1a-8b7c6d5e4f3a', '30d')).rejects.toThrow('Could not retrieve dashboard metrics from the database.');
     });
+
+    it('should return a default object if RPC returns null data without an error', async () => {
+        (supabaseMock.rpc as vi.Mock).mockResolvedValue({ 
+            data: null, 
+            error: null 
+        });
+
+        const result = await getDashboardMetrics('d1a3c5b9-2d7f-4b8e-9c1a-8b7c6d5e4f3a', '30d');
+
+        const validation = DashboardMetricsSchema.safeParse(result);
+        expect(validation.success).toBe(true);
+        expect(result.total_revenue).toBe(0);
+        expect(result.top_products).toEqual([]);
+    });
   });
 });

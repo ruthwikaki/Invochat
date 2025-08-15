@@ -11,7 +11,6 @@ vi.mock('@/config/app-config', () => ({
   config: { ai: { model: 'mock-model' } }
 }));
 
-// Fix: Create mock functions INSIDE the factory
 vi.mock('@/ai/genkit', () => {
   return {
     ai: {
@@ -28,25 +27,22 @@ import * as utils from '@/lib/utils';
 import { ai } from '@/ai/genkit';
 
 describe('Product Demand Forecast Flow', () => {
-  let mockPromptFn: any;
-
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPromptFn = vi.fn();
-    (ai.definePrompt as vi.Mock).mockReturnValue(mockPromptFn);
   });
 
   it('should forecast demand for a product with sufficient sales data', async () => {
     const mockSalesData = Array.from({ length: 10 }, (_, i) => ({ sale_date: `2024-01-${String(i+1).padStart(2,'0')}`, total_quantity: 100 + i }));
     (database.getHistoricalSalesForSingleSkuFromDB as vi.Mock).mockResolvedValue(mockSalesData);
 
-    mockPromptFn.mockResolvedValue({
+    const mockPromptFn = vi.fn().mockResolvedValue({
         output: {
           confidence: 'High',
           analysis: "Mock demand forecast insights",
           trend: 'Upward'
         }
       });
+    (ai.definePrompt as vi.Mock).mockReturnValue(mockPromptFn);
     
     const input = { companyId: 'test-company-id', sku: 'SKU001', daysToForecast: 30 };
     const result = await productDemandForecastFlow(input);
@@ -60,6 +56,8 @@ describe('Product Demand Forecast Flow', () => {
 
   it('should return a low confidence forecast for insufficient data', async () => {
     (database.getHistoricalSalesForSingleSkuFromDB as vi.Mock).mockResolvedValue([]);
+    const mockPromptFn = vi.fn();
+    (ai.definePrompt as vi.Mock).mockReturnValue(mockPromptFn);
 
     const input = { companyId: 'test-company-id', sku: 'SKU001', daysToForecast: 30 };
     const result = await productDemandForecastFlow(input);

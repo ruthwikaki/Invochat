@@ -1,6 +1,15 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Fix: Mock the isRedisEnabled export as well
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { universalChatFlow } from '@/ai/flows/universal-chat';
+import * as redis from '@/lib/redis';
+import { ai } from '@/ai/genkit';
+import crypto from 'crypto';
+
+// ========================================
+// MOCKS
+// ========================================
+
+// Mock redis before all other imports that might use it
 vi.mock('@/lib/redis', () => ({
   isRedisEnabled: false,
   redisClient: {
@@ -32,29 +41,34 @@ vi.mock('@/ai/flows/suggest-bundles-flow', () => ({ getBundleSuggestions: vi.fn(
 vi.mock('@/ai/flows/hidden-money-finder-flow', () => ({ findHiddenMoney: vi.fn() }));
 vi.mock('@/ai/flows/product-demand-forecast-flow', () => ({ getProductDemandForecast: vi.fn() }));
 vi.mock('@/ai/flows/analytics-tools', () => ({
-    getDemandForecast: vi.fn(),
-    getAbcAnalysis: vi.fn(),
-    getGrossMarginAnalysis: vi.fn(),
-    getNetMarginByChannel: vi.fn(),
-    getMarginTrends: vi.fn(),
-    getSalesVelocity: vi.fn(),
+    getDemandForecast: vi.fn(), getAbcAnalysis: vi.fn(), getGrossMarginAnalysis: vi.fn(),
+    getNetMarginByChannel: vi.fn(), getMarginTrends: vi.fn(), getSalesVelocity: vi.fn(),
     getPromotionalImpactAnalysis: vi.fn()
 }));
+vi.mock('crypto', () => ({
+  default: {
+    createHash: vi.fn().mockReturnValue({
+      update: vi.fn().mockReturnThis(),
+      digest: vi.fn().mockReturnValue('mocked-hash'),
+    }),
+  }
+}));
 
+// Mock genkit with the lazy-init compatible pattern
+let mockPromptFn: any;
 vi.mock('@/ai/genkit', () => {
   return {
     ai: {
       defineFlow: vi.fn((_, impl) => impl),
-      definePrompt: vi.fn(),
+      definePrompt: vi.fn(() => mockPromptFn), // Return the mock function itself
       generate: vi.fn(),
     },
   };
 });
 
-import { universalChatFlow } from '@/ai/flows/universal-chat';
-import * as redis from '@/lib/redis';
-import { ai } from '@/ai/genkit';
-import crypto from 'crypto';
+// ========================================
+// TEST SETUP
+// ========================================
 
 const mockUserQuery = 'What should I reorder?';
 const mockCompanyId = 'test-company-id';
@@ -73,14 +87,11 @@ const mockFinalResponse = {
 };
 
 describe('Universal Chat Flow', () => {
-    let mockFinalResponsePromptFn: any;
-
     beforeEach(() => {
         vi.clearAllMocks();
         vi.spyOn(redis, 'isRedisEnabled', 'get').mockReturnValue(false);
-        // The universal chat flow defines ONE prompt. This mock will be used by it.
-        mockFinalResponsePromptFn = vi.fn();
-        (ai.definePrompt as any).mockReturnValue(mockFinalResponsePromptFn);
+        // Reset the mock prompt function before each test
+        mockPromptFn = vi.fn();
     });
 
     it('should call a tool and format the final response', async () => {
@@ -89,13 +100,13 @@ describe('Universal Chat Flow', () => {
             text: ''
         });
         
-        mockFinalResponsePromptFn.mockResolvedValue({ output: mockFinalResponse });
+        mockPromptFn.mockResolvedValue({ output: mockFinalResponse });
 
         const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory as any };
         const result = await universalChatFlow(input);
 
         expect(ai.generate).toHaveBeenCalledWith(expect.anything());
-        expect(mockFinalResponsePromptFn).toHaveBeenCalled();
+        expect(mockPromptFn).toHaveBeenCalled();
         expect(result.toolName).toBe('getReorderSuggestions');
         expect(result.response).toContain('You should reorder these items.');
     });
@@ -106,12 +117,12 @@ describe('Universal Chat Flow', () => {
             toolRequests: [],
         });
         
-        mockFinalResponsePromptFn.mockResolvedValue({ output: { response: "I cannot help with that." } });
+        mockPromptFn.mockResolvedValue({ output: { response: "I cannot help with that." } });
 
         const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory as any };
         await universalChatFlow(input);
         
-        expect(mockFinalResponsePromptFn).toHaveBeenCalledWith(
+        expect(mockPromptFn).toHaveBeenCalledWith(
             expect.objectContaining({ userQuery: mockUserQuery, toolResult: 'I cannot help with that.' }),
             expect.anything()
         );
@@ -119,12 +130,12 @@ describe('Universal Chat Flow', () => {
 
     it('should use the Redis cache when available', async () => {
         vi.spyOn(redis, 'isRedisEnabled', 'get').mockReturnValue(true);
-        const redisGetMock = vi.spyOn(redis.redisClient, 'get').mockResolvedValue(JSON.stringify(mockFinalResponse));
+        const redisGetMock = (redis.redisClient.get as vi.Mock).mockResolvedValue(JSON.stringify(mockFinalResponse));
 
         const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory as any };
         const result = await universalChatFlow(input);
 
-        expect(redisGetMock).toHaveBeenCalled();
+        expect(redisGetMock).toHaveBeenCalledWith('aichat:test-company-id:mocked-hash');
         expect(ai.generate).not.toHaveBeenCalled();
         expect(result.response).toBe(mockFinalResponse.response);
     });

@@ -7,7 +7,6 @@ vi.mock('@/config/app-config', () => ({
   config: { ai: { model: 'mock-model' } }
 }));
 
-// Fix: Create mock functions INSIDE the factory
 vi.mock('@/ai/genkit', () => {
   return {
     ai: {
@@ -24,12 +23,9 @@ import { ai } from '@/ai/genkit';
 import { randomUUID } from 'crypto';
 
 describe('Price Optimization Flow', () => {
-  let mockPromptFn: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPromptFn = vi.fn();
-    (ai.definePrompt as vi.Mock).mockReturnValue(mockPromptFn);
   });
 
   it('should fetch inventory and generate price suggestions', async () => {
@@ -37,12 +33,13 @@ describe('Price Optimization Flow', () => {
     (database.getUnifiedInventoryFromDB as vi.Mock).mockResolvedValue(mockInventory);
     (database.getHistoricalSalesForSkus as vi.Mock).mockResolvedValue([]);
 
-    mockPromptFn.mockResolvedValue({
+    const mockPromptFn = vi.fn().mockResolvedValue({
         output: {
           suggestions: [{ sku: 'TEST-001', currentPrice: 1000, suggestedPrice: 1200, productName: 'Test', reasoning: 'test', estimatedImpact: 'test' }],
           analysis: "Mock price optimization analysis"
         }
       });
+    (ai.definePrompt as vi.Mock).mockReturnValue(mockPromptFn);
     
     const input = { companyId: 'test-company-id' };
     const result = await priceOptimizationFlow(input);
@@ -50,10 +47,13 @@ describe('Price Optimization Flow', () => {
     expect(database.getUnifiedInventoryFromDB).toHaveBeenCalledWith(input.companyId, { limit: 50 });
     expect(mockPromptFn).toHaveBeenCalled();
     expect(result.suggestions).toHaveLength(1);
+    expect(result.analysis).toBe('Mock price optimization analysis');
   });
 
   it('should handle no inventory data', async () => {
     (database.getUnifiedInventoryFromDB as vi.Mock).mockResolvedValue({ items: [], totalCount: 0 });
+    const mockPromptFn = vi.fn();
+    (ai.definePrompt as vi.Mock).mockReturnValue(mockPromptFn);
 
     const input = { companyId: 'test-company-id' };
     const result = await priceOptimizationFlow(input);
