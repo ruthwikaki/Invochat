@@ -30,11 +30,13 @@ vi.mock('@/ai/flows/analytics-tools', () => ({
 }));
 
 vi.mock('@/ai/genkit', () => {
+  const mockPromptFunction = vi.fn();
+  const mockGenerate = vi.fn();
   return {
     ai: {
       defineFlow: vi.fn((config, implementation) => implementation),
-      definePrompt: vi.fn(() => vi.fn()),
-      generate: vi.fn(),
+      definePrompt: vi.fn(() => mockPromptFunction),
+      generate: mockGenerate,
     },
   };
 });
@@ -71,13 +73,14 @@ describe('Universal Chat Flow', () => {
             toolRequests: [{ name: 'getReorderSuggestions', input: { companyId: mockCompanyId } }],
             text: ''
         });
-        (ai.definePrompt as any)().mockResolvedValue({ output: mockFinalResponse });
+        const mockPrompt = (ai.definePrompt as any)();
+        mockPrompt.mockResolvedValue({ output: mockFinalResponse });
 
         const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory as any };
         const result = await universalChatFlow(input);
 
         expect(ai.generate).toHaveBeenCalledWith(expect.anything());
-        expect(ai.definePrompt as any)().toHaveBeenCalled();
+        expect(mockPrompt).toHaveBeenCalled();
         expect(result.toolName).toBe('getReorderSuggestions');
         expect(result.response).toContain('You should reorder these items.');
     });
@@ -87,12 +90,13 @@ describe('Universal Chat Flow', () => {
             text: 'I cannot help with that.',
             toolRequests: [],
         });
-        (ai.definePrompt as any)().mockResolvedValue({ output: { response: "I cannot help with that." } });
+        const mockPrompt = (ai.definePrompt as any)();
+        mockPrompt.mockResolvedValue({ output: { response: "I cannot help with that." } });
 
         const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory as any };
         await universalChatFlow(input);
         
-        expect((ai.definePrompt as any)()).toHaveBeenCalledWith(
+        expect(mockPrompt).toHaveBeenCalledWith(
             expect.objectContaining({ userQuery: mockUserQuery, toolResult: 'I cannot help with that.' }),
             expect.anything()
         );

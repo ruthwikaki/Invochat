@@ -74,6 +74,8 @@ describe('Analyze Supplier Flow', () => {
     const result = await analyzeSuppliersFlow(input);
 
     expect(database.getSupplierPerformanceFromDB).toHaveBeenCalledWith(input.companyId);
+    const mockPrompt = (ai.definePrompt as any)();
+    expect(mockPrompt).toHaveBeenCalled();
     expect(result.bestSupplier).toBe('Best Mock Supplier');
     expect(result.analysis).toBe('Mock supplier analysis');
     expect(result.performanceData).toEqual(mockPerformanceData);

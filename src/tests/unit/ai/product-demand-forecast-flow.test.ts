@@ -5,7 +5,7 @@ vi.mock('@/services/database');
 vi.mock('@/lib/error-handler');
 vi.mock('@/lib/utils', () => ({
   linearRegression: vi.fn(() => ({ slope: 5, intercept: 100 })),
-  differenceInDays: vi.fn(() => 1),
+  differenceInDays: vi.fn(() => 1), // Mock this utility
 }));
 vi.mock('@/config/app-config', () => ({
   config: { ai: { model: 'mock-model' } }
@@ -35,7 +35,6 @@ describe('Product Demand Forecast Flow', () => {
     const mockPrompt = (ai.definePrompt as any)();
     mockPrompt.mockResolvedValue({
       output: {
-        forecastedDemand: 105,
         confidence: 'High',
         analysis: "Mock demand forecast insights",
         trend: 'Upward'
