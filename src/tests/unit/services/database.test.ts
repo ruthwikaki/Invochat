@@ -1,7 +1,7 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getDashboardData } from '@/app/data-actions';
 import * as database from '@/services/database';
+import * as authHelpers from '@/lib/auth-helpers';
 
 // Mock the Supabase client
 vi.mock('@/lib/supabase/admin', () => ({
@@ -10,11 +10,8 @@ vi.mock('@/lib/supabase/admin', () => ({
   })),
 }));
 
-vi.mock('@/lib/auth-helpers', () => ({
-    getAuthContext: vi.fn(() => ({
-        companyId: 'test-company-id'
-    }))
-}))
+vi.mock('@/lib/auth-helpers');
+vi.mock('@/services/database');
 
 const mockDashboardData = {
   total_revenue: 100000,
@@ -34,28 +31,39 @@ const mockDashboardData = {
   },
 };
 
-describe('Database Service - Business Logic', () => {
+describe('Data Action: getDashboardData', () => {
   beforeEach(() => {
     vi.clearAllMocks(); // Reset mocks before each test
+     // Mock the auth context to always return a valid user/company
+    (authHelpers.getAuthContext as any).mockResolvedValue({
+        userId: 'test-user-id',
+        companyId: 'test-company-id'
+    });
   });
 
-  it('getDashboardMetrics should call the correct RPC function and return data', async () => {
+  it('should call getDashboardMetrics from the database service and return data', async () => {
+    // Arrange: Mock successful response
     (database.getDashboardMetrics as any).mockResolvedValue(mockDashboardData);
 
+    // Act
     const result = await getDashboardData('30d');
 
+    // Assert
     expect(database.getDashboardMetrics).toHaveBeenCalledWith('test-company-id', '30d');
-
     expect(result.total_revenue).toBe(100000);
     expect(result.top_products[0].product_name).toBe('Test Product');
   });
 
-  it('getDashboardMetrics should throw an error if the RPC call fails', async () => {
+  it('should return null if the database call fails', async () => {
     const dbError = new Error('Database connection error');
     
+    // Arrange: Mock rejected response
     (database.getDashboardMetrics as any).mockRejectedValue(dbError);
     
+    // Act
     const result = await getDashboardData('30d');
-    expect(result.total_revenue).toBe(0);
+
+    // Assert
+    expect(result).toBeNull();
   });
 });

@@ -8,6 +8,7 @@ vi.mock('@/ai/genkit', () => ({
   ai: {
     definePrompt: vi.fn(() => vi.fn()),
     defineFlow: vi.fn((_config, func) => func),
+    defineTool: vi.fn((_config, func) => func),
   },
 }));
 
@@ -78,6 +79,3 @@ describe('Price Optimization Flow', () => {
     expect(suggestPricesPrompt).not.toHaveBeenCalled();
   });
 });
-
-
-

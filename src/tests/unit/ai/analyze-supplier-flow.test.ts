@@ -1,6 +1,5 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { analyzeSuppliersFlow } from '@/ai/flows/analyze-supplier-flow';
+import { analyzeSuppliersFlow, getSupplierAnalysisTool } from '@/ai/flows/analyze-supplier-flow';
 import * as database from '@/services/database';
 import * as genkit from '@/ai/genkit';
 import type { SupplierPerformanceReport } from '@/types';
@@ -11,6 +10,7 @@ vi.mock('@/ai/genkit', () => ({
   ai: {
     definePrompt: vi.fn(() => vi.fn()),
     defineFlow: vi.fn((_config, func) => func), // Immediately return the flow function
+    defineTool: vi.fn((_config, func) => func),
   },
 }));
 
@@ -55,7 +55,7 @@ describe('Analyze Supplier Flow', () => {
   });
 
   it('should fetch supplier performance data and generate an analysis', async () => {
-    vi.spyOn(database, 'getSupplierPerformanceFromDB').mockResolvedValue(mockPerformanceData);
+    (database.getSupplierPerformanceFromDB as any).mockResolvedValue(mockPerformanceData);
 
     const input = { companyId: 'test-company-id' };
     const result = await analyzeSuppliersFlow(input);
@@ -73,7 +73,7 @@ describe('Analyze Supplier Flow', () => {
   });
 
   it('should handle cases where there is no performance data', async () => {
-    vi.spyOn(database, 'getSupplierPerformanceFromDB').mockResolvedValue([]);
+    (database.getSupplierPerformanceFromDB as any).mockResolvedValue([]);
 
     const input = { companyId: 'test-company-id' };
     const result = await analyzeSuppliersFlow(input);
@@ -86,7 +86,7 @@ describe('Analyze Supplier Flow', () => {
   });
 
   it('should throw an error if the AI analysis fails', async () => {
-    vi.spyOn(database, 'getSupplierPerformanceFromDB').mockResolvedValue(mockPerformanceData);
+    (database.getSupplierPerformanceFromDB as any).mockResolvedValue(mockPerformanceData);
     // Mock the AI prompt to return no output
     supplierAnalysisPrompt.mockResolvedValue({ output: null });
 
@@ -95,5 +95,3 @@ describe('Analyze Supplier Flow', () => {
     await expect(analyzeSuppliersFlow(input)).rejects.toThrow('An error occurred while analyzing supplier performance.');
   });
 });
-
-
