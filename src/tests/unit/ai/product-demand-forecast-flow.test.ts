@@ -7,6 +7,9 @@ vi.mock('@/lib/error-handler');
 vi.mock('@/config/app-config', () => ({
   config: { ai: { model: 'mock-model' } }
 }));
+vi.mock('date-fns', () => ({
+  differenceInDays: vi.fn((date1, date2) => Math.abs(date1.getTime() - date2.getTime()) / (1000 * 60 * 60 * 24))
+}));
 
 // Partially mock lib/utils to mock one function but keep others
 vi.mock('@/lib/utils', async (importOriginal) => {
@@ -14,13 +17,10 @@ vi.mock('@/lib/utils', async (importOriginal) => {
     return {
         ...actual,
         linearRegression: vi.fn(() => ({ slope: 5, intercept: 100 })),
-        // The test needs differenceInDays, so we provide a mock or the actual implementation
-        differenceInDays: actual.differenceInDays,
     };
 });
 
 import * as database from '@/services/database';
-import { productDemandForecastFlow } from '@/ai/flows/product-demand-forecast-flow';
 import { linearRegression } from '@/lib/utils';
 
 describe('Product Demand Forecast Flow', () => {

@@ -9,7 +9,8 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { getHistoricalSalesForSingleSkuFromDB } from '@/services/database';
 import { logError } from '@/lib/error-handler';
-import { linearRegression, differenceInDays } from '@/lib/utils';
+import { linearRegression } from '@/lib/utils';
+import { differenceInDays } from 'date-fns';
 import { config } from '@/config/app-config';
 
 const ForecastInputSchema = z.object({

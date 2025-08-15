@@ -34,8 +34,8 @@ describe('Price Optimization Flow', () => {
     }));
     
     const mockInventory = { items: [{ id: 'variant-id-1', sku: 'TEST-001', product_title: 'Test', cost: 500, price: 1000, inventory_quantity: 10, product_id: 'prod-id-1' }], totalCount: 1 };
-    (database.getUnifiedInventoryFromDB as vi.Mock).mockResolvedValue(mockInventory);
-    (database.getHistoricalSalesForSkus as vi.Mock).mockResolvedValue([]);
+    (database.getUnifiedInventoryFromDB as Mock).mockResolvedValue(mockInventory);
+    (database.getHistoricalSalesForSkus as Mock).mockResolvedValue([]);
 
     const { priceOptimizationFlow } = await import('@/ai/flows/price-optimization-flow');
     
@@ -56,7 +56,7 @@ describe('Price Optimization Flow', () => {
       },
     }));
 
-    (database.getUnifiedInventoryFromDB as vi.Mock).mockResolvedValue({ items: [], totalCount: 0 });
+    (database.getUnifiedInventoryFromDB as Mock).mockResolvedValue({ items: [], totalCount: 0 });
 
     const { priceOptimizationFlow } = await import('@/ai/flows/price-optimization-flow');
 

@@ -119,7 +119,7 @@ export const priceOptimizationFlow = ai.defineFlow(
       }
       
       // Post-processing guardrail: Ensure no suggested price is below cost.
-      const finalSuggestions = output.suggestions.map(suggestion => {
+      const finalSuggestions = output.suggestions.map((suggestion: z.infer<typeof PriceSuggestionSchema>) => {
           const product = productSubsetForAI.find(p => p.sku === suggestion.sku);
           if (product && suggestion.suggestedPrice < product.cost) {
               // If AI suggests a price below cost, reset it to the current price.

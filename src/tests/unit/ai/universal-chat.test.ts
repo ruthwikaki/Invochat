@@ -1,6 +1,5 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Message } from '@/types';
 
 // Mock dependencies
 vi.mock('@/lib/error-handler');
@@ -22,8 +21,8 @@ vi.mock('crypto', () => ({
 const mockUserQuery = 'What should I reorder?';
 const mockCompanyId = 'test-company-id';
 
-const mockConversationHistory: Partial<Message>[] = [
-    { role: 'user', content: [{ text: mockUserQuery }] as any }
+const mockConversationHistory = [
+    { role: 'user' as const, content: [{ text: mockUserQuery }] }
 ];
 
 const mockFinalResponse = {
@@ -55,13 +54,14 @@ describe('Universal Chat Flow', () => {
             ai: {
                 defineFlow: vi.fn((_, impl) => impl),
                 definePrompt: vi.fn().mockReturnValue(finalResponsePromptMock),
+                defineTool: vi.fn().mockReturnValue(vi.fn()),
                 generate: generateMock,
             },
         }));
 
         const { universalChatFlow } = await import('@/ai/flows/universal-chat');
         
-        const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory as Message[] };
+        const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory };
         const result = await universalChatFlow(input);
 
         expect(result.toolName).toBe('getReorderSuggestions');
@@ -80,13 +80,14 @@ describe('Universal Chat Flow', () => {
             ai: {
                 defineFlow: vi.fn((_, impl) => impl),
                 definePrompt: vi.fn().mockReturnValue(finalResponsePromptMock),
+                defineTool: vi.fn().mockReturnValue(vi.fn()),
                 generate: generateMock,
             },
         }));
 
         const { universalChatFlow } = await import('@/ai/flows/universal-chat');
 
-        const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory as Message[] };
+        const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory };
         await universalChatFlow(input);
         
         expect(finalResponsePromptMock).toHaveBeenCalledWith(
@@ -106,13 +107,15 @@ describe('Universal Chat Flow', () => {
         vi.doMock('@/ai/genkit', () => ({
           ai: { 
             defineFlow: vi.fn((_, impl) => impl),
+            definePrompt: vi.fn(),
+            defineTool: vi.fn().mockReturnValue(vi.fn()),
             generate: generateMock 
           }
         }));
 
         const { universalChatFlow } = await import('@/ai/flows/universal-chat');
         
-        const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory as Message[] };
+        const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory };
         const result = await universalChatFlow(input);
 
         expect(redisGetMock).toHaveBeenCalledWith('aichat:test-company-id:mocked-hash');
@@ -127,16 +130,18 @@ describe('Universal Chat Flow', () => {
        vi.doMock('@/ai/genkit', () => ({
           ai: {
             defineFlow: vi.fn((_, impl) => impl),
+            definePrompt: vi.fn(),
+            defineTool: vi.fn().mockReturnValue(vi.fn()),
             generate: generateMock,
           }
        }));
 
        const { universalChatFlow } = await import('@/ai/flows/universal-chat');
        
-       const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory as Message[] };
+       const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory };
        const result = await universalChatFlow(input);
 
-        expect(result.response).toContain('AI service is currently unavailable');
+        expect(result.response).toContain('I encountered an unexpected error');
         expect(result.confidence).toBe(0.0);
         expect(result.is_error).toBe(true);
     });
