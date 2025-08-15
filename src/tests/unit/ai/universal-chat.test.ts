@@ -1,18 +1,18 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
-import * as genkit from '@/ai/genkit';
 import * as redis from '@/lib/redis';
 import type { MessageData, GenerateResponse, ToolRequestPart, GenerateOptions } from 'genkit';
 
-const mockAi = {
-  defineFlow: vi.fn(),
-  definePrompt: vi.fn(),
-  generate: vi.fn(),
-};
+const defineFlowMock = vi.fn((_config, func) => func);
+const definePromptMock = vi.fn();
+const generateMock = vi.fn();
 
 vi.mock('@/ai/genkit', () => ({
-  ai: mockAi,
+  ai: {
+    defineFlow: defineFlowMock,
+    definePrompt: definePromptMock,
+    generate: generateMock,
+  },
 }));
 vi.mock('@/lib/redis');
 
@@ -78,18 +78,17 @@ describe('Universal Chat Flow', () => {
         vi.resetAllMocks();
         finalResponsePromptMock = vi.fn().mockResolvedValue({ output: mockFinalResponse });
 
-        (mockAi.defineFlow as vi.Mock).mockImplementation((_config, func) => func);
-        (mockAi.definePrompt as vi.Mock).mockReturnValue(finalResponsePromptMock);
+        definePromptMock.mockReturnValue(finalResponsePromptMock);
         vi.spyOn(redis, 'isRedisEnabled', 'get').mockReturnValue(false);
     });
 
     it('should call a tool and format the final response', async () => {
-        (mockAi.generate as vi.Mock).mockResolvedValue(mockToolResponse);
+        generateMock.mockResolvedValue(mockToolResponse);
 
         const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory as any };
         const result = await universalChatFlow(input);
 
-        expect(mockAi.generate).toHaveBeenCalledWith(expect.objectContaining({
+        expect(generateMock).toHaveBeenCalledWith(expect.objectContaining({
             tools: expect.any(Array),
         }));
         expect(finalResponsePromptMock).toHaveBeenCalledWith(
@@ -101,7 +100,7 @@ describe('Universal Chat Flow', () => {
     });
 
     it('should handle a text-only response from the AI', async () => {
-        (mockAi.generate as vi.Mock).mockResolvedValue(mockTextResponse);
+        generateMock.mockResolvedValue(mockTextResponse);
 
         const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory as any };
         await universalChatFlow(input);
@@ -120,7 +119,7 @@ describe('Universal Chat Flow', () => {
         const result = await universalChatFlow(input);
 
         expect(redisGetMock).toHaveBeenCalled();
-        expect(mockAi.generate).not.toHaveBeenCalled();
+        expect(generateMock).not.toHaveBeenCalled();
         expect(result.response).toBe(mockFinalResponse.response);
     });
 });

@@ -1,17 +1,19 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { productDemandForecastFlow } from '@/ai/flows/product-demand-forecast-flow';
 import * as database from '@/services/database';
-import { ai } from '@/ai/genkit';
 import * as utils from '@/lib/utils';
 
-const mockAi = {
-  definePrompt: vi.fn(),
-  defineFlow: vi.fn((_config, func) => func),
-  defineTool: vi.fn((_config, func) => func),
-};
+
+const defineToolMock = vi.fn((config, func) => func);
+const definePromptMock = vi.fn();
+const defineFlowMock = vi.fn((_config, func) => func);
+
 vi.mock('@/ai/genkit', () => ({
-  ai: mockAi,
+  ai: {
+    defineTool: defineToolMock,
+    definePrompt: definePromptMock,
+    defineFlow: defineFlowMock,
+  },
 }));
 vi.mock('@/services/database');
 vi.mock('@/lib/utils');
@@ -38,12 +40,12 @@ describe('Product Demand Forecast Flow', () => {
     beforeEach(() => {
         vi.resetAllMocks();
         generateForecastAnalysisPrompt = vi.fn().mockResolvedValue({ output: mockAiAnalysis });
-        (ai.definePrompt as vi.Mock).mockReturnValue(generateForecastAnalysisPrompt);
+        definePromptMock.mockReturnValue(generateForecastAnalysisPrompt);
         (utils.linearRegression as vi.Mock).mockReturnValue({ slope: 1, intercept: 10 });
     });
 
     it('should forecast demand for a product with sufficient sales data', async () => {
-        (database.getHistoricalSalesForSingleSkuFromDB as any).mockResolvedValue(mockSalesData);
+        (database.getHistoricalSalesForSingleSkuFromDB as vi.Mock).mockResolvedValue(mockSalesData);
 
         const input = { companyId: 'test-company-id', sku: 'SKU001', daysToForecast: 30 };
         const result = await productDemandForecastFlow(input);
@@ -57,7 +59,7 @@ describe('Product Demand Forecast Flow', () => {
     });
 
     it('should return a low confidence forecast for insufficient data', async () => {
-        (database.getHistoricalSalesForSingleSkuFromDB as any).mockResolvedValue(mockSalesData.slice(0, 3));
+        (database.getHistoricalSalesForSingleSkuFromDB as vi.Mock).mockResolvedValue(mockSalesData.slice(0, 3));
         const input = { companyId: 'test-company-id', sku: 'SKU002', daysToForecast: 30 };
         const result = await productDemandForecastFlow(input);
 
