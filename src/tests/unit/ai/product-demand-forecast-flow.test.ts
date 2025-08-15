@@ -4,14 +4,30 @@ import * as database from '@/services/database';
 import * as utils from '@/lib/utils';
 import { ai } from '@/ai/genkit';
 
-vi.mock('@/ai/genkit', async () => {
-  const { defineTool, defineFlow, definePrompt } = await vi.importActual('genkit');
+vi.mock('@/ai/genkit', () => {
   return {
     ai: {
-      defineTool: vi.fn((...args) => defineTool(...args)),
-      defineFlow: vi.fn((...args) => defineFlow(...args)),
-      definePrompt: vi.fn((...args) => definePrompt(...args)),
-      generate: vi.fn(),
+      defineTool: vi.fn((config, implementation) => {
+        const mockTool = vi.fn(implementation || (() => Promise.resolve({})));
+        mockTool.config = config;
+        return mockTool;
+      }),
+      defineFlow: vi.fn((config, implementation) => {
+        const mockFlow = vi.fn(implementation || (() => Promise.resolve({})));
+        mockFlow.config = config;
+        return mockFlow;
+      }),
+      definePrompt: vi.fn((config) => {
+        const mockPrompt = vi.fn(async () => ({ 
+          output: {
+            confidence: 'Medium',
+            analysis: "Sales for this product show a clear upward trend. Based on this, I predict you will sell approximately 450 units in the next 30 days.",
+            trend: 'Upward',
+          }
+        }));
+        mockPrompt.config = config;
+        return mockPrompt;
+      }),
     },
   };
 });
@@ -27,18 +43,10 @@ const mockSalesData = [
     { sale_date: '2024-01-05T00:00:00Z', total_quantity: 15 },
 ];
 
-
-const mockAiAnalysis = {
-    confidence: 'Medium',
-    analysis: "Sales for this product show a clear upward trend. Based on this, I predict you will sell approximately 450 units in the next 30 days.",
-    trend: 'Upward',
-};
-
 describe('Product Demand Forecast Flow', () => {
 
     beforeEach(() => {
         vi.resetAllMocks();
-        vi.mocked(ai.definePrompt).mockReturnValue(vi.fn().mockResolvedValue({ output: mockAiAnalysis }));
         (utils.linearRegression as vi.Mock).mockReturnValue({ slope: 1, intercept: 10 });
     });
 

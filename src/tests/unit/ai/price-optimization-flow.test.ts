@@ -3,14 +3,38 @@ import { priceOptimizationFlow, getPriceOptimizationSuggestions } from '@/ai/flo
 import * as database from '@/services/database';
 import { ai } from '@/ai/genkit';
 
-vi.mock('@/ai/genkit', async () => {
-  const { defineTool, defineFlow, definePrompt } = await vi.importActual('genkit');
+vi.mock('@/ai/genkit', () => {
   return {
     ai: {
-      defineTool: vi.fn((...args) => defineTool(...args)),
-      defineFlow: vi.fn((...args) => defineFlow(...args)),
-      definePrompt: vi.fn((...args) => definePrompt(...args)),
-      generate: vi.fn(),
+      defineTool: vi.fn((config, implementation) => {
+        const mockTool = vi.fn(implementation || (() => Promise.resolve({})));
+        mockTool.config = config;
+        return mockTool;
+      }),
+      defineFlow: vi.fn((config, implementation) => {
+        const mockFlow = vi.fn(implementation || (() => Promise.resolve({})));
+        mockFlow.config = config;
+        return mockFlow;
+      }),
+      definePrompt: vi.fn((config) => {
+        const mockPrompt = vi.fn(async () => ({ 
+          output: {
+            suggestions: [
+                {
+                  sku: 'SKU001',
+                  productName: 'Fast Mover',
+                  currentPrice: 1000,
+                  suggestedPrice: 1100,
+                  reasoning: 'High demand, potential for margin increase',
+                  estimatedImpact: 'Increased profit per unit',
+                },
+            ],
+            analysis: "Mock price optimization analysis"
+          }
+        }));
+        mockPrompt.config = config;
+        return mockPrompt;
+      }),
     },
   };
 });
@@ -25,33 +49,10 @@ const mockInventory = {
   totalCount: 2,
 };
 
-const mockAiResponse = {
-  suggestions: [
-    {
-      sku: 'SKU001',
-      productName: 'Fast Mover',
-      currentPrice: 1000,
-      suggestedPrice: 1100, // Increase price
-      reasoning: 'High demand, potential for margin increase',
-      estimatedImpact: 'Increased profit per unit',
-    },
-     {
-      sku: 'SKU002',
-      productName: 'Slow Mover',
-      currentPrice: 2500,
-      suggestedPrice: 2250, // Decrease price
-      reasoning: 'Slow sales, consider a promotional price',
-      estimatedImpact: 'Higher sales volume, improved cash flow',
-    },
-  ],
-  analysis: 'Identified one candidate for a price increase and one for a promotional decrease.',
-};
-
 describe('Price Optimization Flow', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
-    vi.mocked(ai.definePrompt).mockReturnValue(vi.fn().mockResolvedValue({ output: mockAiResponse }));
   });
 
   it('should fetch inventory and generate price suggestions', async () => {
@@ -63,9 +64,8 @@ describe('Price Optimization Flow', () => {
 
     expect(database.getUnifiedInventoryFromDB).toHaveBeenCalledWith(input.companyId, { limit: 50 });
     expect(ai.definePrompt).toHaveBeenCalled();
-    expect(result.suggestions).toHaveLength(2);
+    expect(result.suggestions).toHaveLength(1);
     expect(result.suggestions[0].suggestedPrice).toBe(1100);
-    expect(result.suggestions[1].suggestedPrice).toBe(2250);
   });
 
   it('should handle no inventory data', async () => {

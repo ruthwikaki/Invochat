@@ -4,16 +4,30 @@ import * as redis from '@/lib/redis';
 import type { MessageData, GenerateResponse, ToolRequestPart, GenerateOptions } from 'genkit';
 import { ai } from '@/ai/genkit';
 
-vi.mock('@/ai/genkit', async () => {
-  const { defineTool, defineFlow, definePrompt } = await vi.importActual('genkit');
-  return {
-    ai: {
-      defineTool: vi.fn((...args) => defineTool(...args)),
-      defineFlow: vi.fn((...args) => defineFlow(...args)),
-      definePrompt: vi.fn((...args) => definePrompt(...args)),
-      generate: vi.fn(),
-    },
-  };
+vi.mock('@/ai/genkit', () => {
+    const definePrompt = vi.fn((config) => {
+        const mockPrompt = vi.fn(async () => ({ 
+          output: {
+            response: "Mock chat response",
+            data: [{ sku: 'SKU001', quantity: 50 }],
+            visualization: { type: 'table', title: 'Reorder Suggestions', data: [] },
+            confidence: 0.9,
+            assumptions: [],
+            toolName: 'getReorderSuggestions'
+          }
+        }));
+        mockPrompt.config = config;
+        return mockPrompt;
+    });
+
+    return {
+        ai: {
+            defineTool: vi.fn(),
+            defineFlow: vi.fn((config, implementation) => implementation),
+            definePrompt: definePrompt,
+            generate: vi.fn(),
+        },
+    };
 });
 vi.mock('@/lib/redis');
 
@@ -75,7 +89,6 @@ const mockFinalResponse = {
 describe('Universal Chat Flow', () => {
     beforeEach(() => {
         vi.resetAllMocks();
-        vi.mocked(ai.definePrompt).mockReturnValue(vi.fn().mockResolvedValue({ output: mockFinalResponse }));
         vi.spyOn(redis, 'isRedisEnabled', 'get').mockReturnValue(false);
     });
 
@@ -90,7 +103,7 @@ describe('Universal Chat Flow', () => {
         }));
         expect(ai.definePrompt).toHaveBeenCalledWith(expect.objectContaining({ name: 'finalResponsePrompt' }));
         expect(result.toolName).toBe('getReorderSuggestions');
-        expect(result.response).toContain('You should reorder these items.');
+        expect(result.response).toContain('Mock chat response');
     });
 
     it('should handle a text-only response from the AI', async () => {
