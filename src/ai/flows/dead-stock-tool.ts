@@ -10,6 +10,12 @@ import { getDeadStockReportFromDB } from '@/services/database';
 import { DeadStockItemSchema, type DeadStockItem } from '@/types';
 import { logError } from '@/lib/error-handler';
 
+const DeadStockReportSchema = z.object({
+  deadStockItems: z.array(DeadStockItemSchema),
+  totalValue: z.number(),
+  totalUnits: z.number(),
+});
+
 export const getDeadStockReport = ai.defineTool(
   {
     name: 'getDeadStockReport',
@@ -18,18 +24,18 @@ export const getDeadStockReport = ai.defineTool(
     inputSchema: z.object({
       companyId: z.string().uuid().describe("The ID of the company to get the report for."),
     }),
-    outputSchema: z.array(DeadStockItemSchema),
+    outputSchema: DeadStockReportSchema,
   },
-  async (input): Promise<DeadStockItem[]> => {
+  async (input): Promise<z.infer<typeof DeadStockReportSchema>> => {
     logger.info(`[Dead Stock Tool] Getting report for company: ${input.companyId}`);
     try {
         const deadStockData = await getDeadStockReportFromDB(input.companyId);
-        // The tool should return just the items, not the totals.
+        
         if (deadStockData.deadStockItems.length === 0) {
             logger.info(`[Dead Stock Tool] No dead stock found for company ${input.companyId}`);
-            // Return an empty array, but the final response synthesizer should handle this case gracefully.
         }
-        return deadStockData.deadStockItems;
+        
+        return deadStockData;
     } catch (e) {
         logError(e, { context: `[Dead Stock Tool] Failed to generate report for company ${input.companyId}` });
         throw new Error('An error occurred while trying to generate the dead stock report.');

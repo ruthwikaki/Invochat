@@ -24,7 +24,7 @@ export const QuickActions = () => {
     }
 
     return (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
             <Button variant="outline" className="h-auto flex-col gap-2 p-4" onClick={() => router.push('/import')}>
                 <Upload className="h-5 w-5" />
                 <span>Import Data</span>
@@ -41,7 +41,7 @@ export const QuickActions = () => {
                 <AlertTriangle className="h-5 w-5" />
                 <span>Dead Stock</span>
             </Button>
-             <Button variant="outline" className="h-auto flex-col gap-2 p-4 md:col-span-1 col-span-2" onClick={handleRefresh} disabled={isPending}>
+             <Button variant="outline" className="h-auto flex-col gap-2 p-4 col-span-2 sm:col-span-1" onClick={handleRefresh} disabled={isPending}>
                 {isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <GanttChartSquare className="h-5 w-5" />}
                 <span>Refresh Data</span>
             </Button>
