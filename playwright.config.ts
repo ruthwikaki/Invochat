@@ -42,7 +42,17 @@ export default defineConfig({
       dependencies: ['setup'],
     },
     {
+      name: 'auth-tests',
+      testMatch: /(auth|login|signup).*\.spec\.ts/,
+      use: { 
+        ...devices['Desktop Chrome'],
+        // No shared auth state for auth tests
+      },
+      dependencies: ['setup'],
+    },
+    {
       name: 'chromium',
+      testMatch: ['**/*.spec.ts', '!**/auth*.spec.ts', '!**/login*.spec.ts', '!**/signup*.spec.ts'],
       use: { 
         ...devices['Desktop Chrome'],
         // Use shared authentication state to avoid repeated logins

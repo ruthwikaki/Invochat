@@ -548,8 +548,19 @@ inventory_stats AS (
 ),
 dead_stock_agg AS (
     SELECT
-        SUM(d.total_value) as dead_stock_value
-    FROM get_dead_stock_report(p_company_id) d
+        COALESCE(SUM(pv.inventory_quantity * COALESCE(pv.cost, 0)), 0) as dead_stock_value
+    FROM public.product_variants pv
+    LEFT JOIN public.company_settings cs ON pv.company_id = cs.company_id
+    LEFT JOIN (
+        SELECT oli.sku, MAX(o.created_at) AS last_sale_date
+        FROM public.order_line_items oli
+        JOIN public.orders o ON oli.order_id = o.id
+        WHERE o.company_id = p_company_id AND o.financial_status = 'paid'
+        GROUP BY oli.sku
+    ) ls ON pv.sku = ls.sku
+    WHERE pv.company_id = p_company_id
+      AND pv.inventory_quantity > 0
+      AND (ls.last_sale_date IS NULL OR ls.last_sale_date < (CURRENT_DATE - INTERVAL '1 day' * COALESCE(cs.dead_stock_days, 90)))
 )
 SELECT jsonb_build_object(
     'total_revenue', COALESCE((SELECT total_revenue FROM current_period_sales), 0),

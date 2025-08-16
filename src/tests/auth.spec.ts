@@ -6,8 +6,8 @@ test.describe('Authentication and Authorization', () => {
 
   test('should show validation error for bad login', async ({ page }) => {
     await page.goto('/login');
-    await page.fill('input[name="email"]', 'wrong@user.com');
-    await page.fill('input[name="password"]', 'wrongpassword');
+    await page.fill('#email', 'wrong@user.com');
+    await page.fill('#password', 'wrongpassword');
     await page.click('button[type="submit"]');
 
     const errorMessage = page.locator('[role="alert"]:has-text("Invalid login credentials")');
@@ -16,12 +16,12 @@ test.describe('Authentication and Authorization', () => {
 
   test('should show validation errors for signup', async ({ page }) => {
     await page.goto('/signup');
-    await page.fill('input[name="password"]', 'short');
-    await page.fill('input[name="confirmPassword"]', 'different');
+    await page.fill('#password', 'short');
+    await page.fill('#confirmPassword', 'different');
     await page.click('button[type="submit"]');
     
     // This tests browser validation, but we can also check for server errors
-    const passwordInput = page.locator('input[name="password"]');
+    const passwordInput = page.locator('#password');
     const validity = await passwordInput.evaluate((input: HTMLInputElement) => input.validity.tooShort);
     expect(validity).toBe(true);
   });
