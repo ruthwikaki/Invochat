@@ -35,23 +35,24 @@ describe('Dead Stock Tool', () => {
     const result = await (getDeadStockReport as any).run(input);
 
     expect(database.getDeadStockReportFromDB).toHaveBeenCalledWith(input.companyId);
-    expect(result).toEqual(mockDeadStockData.deadStockItems);
-    expect(result).toHaveLength(1);
-    expect(result[0].sku).toBe('DS001');
+    expect(result).toEqual(mockDeadStockData);
+    expect(result.deadStockItems).toHaveLength(1);
+    expect(result.deadStockItems[0].sku).toBe('DS001');
   });
 
   it('should return an empty array if no dead stock is found', async () => {
-    (database.getDeadStockReportFromDB as any).mockResolvedValue({
+    const emptyMockData = {
       deadStockItems: [],
       totalValue: 0,
       totalUnits: 0,
-    });
+    };
+    (database.getDeadStockReportFromDB as any).mockResolvedValue(emptyMockData);
 
     const input = { companyId: 'test-company-id' };
     const result = await (getDeadStockReport as any).run(input);
 
-    expect(result).toEqual([]);
-    expect(result).toHaveLength(0);
+    expect(result).toEqual(emptyMockData);
+    expect(result.deadStockItems).toHaveLength(0);
   });
 
   it('should throw an error if the database call fails', async () => {
