@@ -1,7 +1,8 @@
--- Fix missing get_dead_stock_report function
--- This function is referenced by get_dashboard_metrics but was never defined.
+-- Drop the existing function if it exists, to allow for signature changes.
+DROP FUNCTION IF EXISTS public.get_dead_stock_report(uuid);
 
 -- Create the missing get_dead_stock_report function
+-- This function is referenced by get_dashboard_metrics but was never defined.
 CREATE OR REPLACE FUNCTION public.get_dead_stock_report(p_company_id uuid)
 RETURNS TABLE (
     sku text,
@@ -50,8 +51,8 @@ AS $$
     SELECT 
         dsv.sku,
         COALESCE(dsv.variant_title, dsv.product_title) AS product_name,
-        dsv.inventory_quantity AS quantity,
-        (dsv.inventory_quantity * dsv.cost) AS total_value,
+        dsv.inventory_quantity::integer AS quantity,
+        (dsv.inventory_quantity * dsv.cost)::numeric AS total_value,
         dsv.last_sale_date
     FROM dead_stock_variants dsv
     ORDER BY total_value DESC;
