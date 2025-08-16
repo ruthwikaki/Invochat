@@ -52,7 +52,8 @@ describe('Price Optimization Flow', () => {
     vi.doMock('@/ai/genkit', () => ({
       ai: {
         defineFlow: vi.fn((_config, implementation) => implementation),
-        defineTool: vi.fn((_config, implementation) => implementation),
+        defineTool: vi.fn(), // Mock defineTool
+        definePrompt: vi.fn(), // Mock definePrompt
       },
     }));
 

@@ -42,7 +42,7 @@ describe('Universal Chat Flow', () => {
     });
 
     it('should call a tool and format the final response', async () => {
-        vi.doMock('@/lib/redis', () => ({ isRedisEnabled: false }));
+        vi.doMock('@/lib/redis', () => ({ isRedisEnabled: false, redisClient: {} }));
 
         const finalResponsePromptMock = vi.fn().mockResolvedValue({ output: mockFinalResponse });
         const generateMock = vi.fn().mockResolvedValue({
@@ -69,7 +69,7 @@ describe('Universal Chat Flow', () => {
     });
 
     it('should handle a text-only response from the AI', async () => {
-        vi.doMock('@/lib/redis', () => ({ isRedisEnabled: false }));
+        vi.doMock('@/lib/redis', () => ({ isRedisEnabled: false, redisClient: {} }));
         const finalResponsePromptMock = vi.fn().mockResolvedValue({ output: { response: "I cannot help with that." } });
         const generateMock = vi.fn().mockResolvedValue({
             text: 'I cannot help with that.',
@@ -124,7 +124,7 @@ describe('Universal Chat Flow', () => {
     });
     
     it('should handle errors gracefully', async () => {
-       vi.doMock('@/lib/redis', () => ({ isRedisEnabled: false }));
+       vi.doMock('@/lib/redis', () => ({ isRedisEnabled: false, redisClient: {} }));
 
        const generateMock = vi.fn().mockRejectedValue(new Error('Service unavailable'));
        vi.doMock('@/ai/genkit', () => ({
