@@ -523,7 +523,7 @@ export const AlertSchema = z.object({
 export type Alert = z.infer<typeof AlertSchema>;
 
 export const AuditLogEntrySchema = z.object({
-    id: z.string().uuid(),
+    id: z.union([z.string().uuid(), z.number()]).transform(val => String(val)),
     created_at: z.string().datetime({ offset: true }),
     user_email: z.string().email().nullable(),
     action: z.string(),

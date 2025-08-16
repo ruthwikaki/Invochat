@@ -43,18 +43,14 @@ import {
     getAbcAnalysisFromDB,
     getSalesVelocityFromDB,
     getGrossMarginAnalysisFromDB,
-    createPurchaseOrdersFromSuggestionsInDb,
     logUserFeedbackInDb as logUserFeedbackInDbService,
-    getHistoricalSalesForSkus,
     getDashboardMetrics,
     getInventoryAnalyticsFromDB,
     refreshMaterializedViews,
-    getHistoricalSalesForSingleSkuFromDB,
     getServiceRoleClient,
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
-import type { DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, Message, Conversation, SalesAnalytics, CustomerAnalytics, SupplierFormData, ReorderSuggestion } from '@/types';
-import { SupplierFormSchema } from '@/types';
+import type { DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, Message, Conversation, SalesAnalytics, CustomerAnalytics, SupplierFormData } from '@/types';
 import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
@@ -411,6 +407,7 @@ export async function getPurchaseOrderById(id: string) {
         po_number: po.po_number,
         total_cost: po.total_cost,
         expected_arrival_date: po.expected_arrival_date,
+        idempotency_key: (typeof po.idempotency_key === 'string') ? po.idempotency_key : null,
         line_items: (po.line_items as any)?.map((item: any) => ({
             id: item.id,
             variant_id: item.variant_id,
@@ -616,7 +613,7 @@ export async function handleUserMessage(params: { content: string, conversationI
         company_id: companyId,
         role: 'assistant' as const,
         content: aiResponse.response,
-        visualization: aiResponse.visualization,
+        visualization: aiResponse.visualization ? JSON.parse(JSON.stringify(aiResponse.visualization)) : null,
         component: aiResponse.toolName,
         component_props: aiResponse.data,
         confidence: aiResponse.confidence,

@@ -2,7 +2,6 @@
 import { getCustomersData, exportCustomers, getCustomerAnalytics } from '@/app/data-actions';
 import { CustomersClientPage } from './customers-client-page';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
-import type { Customer, CustomerAnalytics } from '@/types';
 
 const ITEMS_PER_PAGE = 25;
 

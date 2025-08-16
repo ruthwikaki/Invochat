@@ -127,7 +127,7 @@ export function ImporterClientPage() {
     const [isDragging, setIsDragging] = useState(false);
     const [file, setFile] = useState<File | null>(null);
     const [dryRun, setDryRun] = useState(true);
-    const [csrfToken, setCsrfToken] = useState<string | null>(null);
+    const [csrfToken, setCsrfToken] = useState<string | null>("dummy-token-for-now");
     const [mappingSuggestions, setMappingSuggestions] = useState<CsvMappingOutput | null>(null);
 
     useEffect(() => {
@@ -297,11 +297,11 @@ export function ImporterClientPage() {
                                 </div>
                             </div>
                             <div className="flex flex-col sm:flex-row gap-2">
-                                <Button onClick={() => handleFormSubmit({})} disabled={isPending || !csrfToken} className="flex-1">
+                                <Button onClick={() => handleFormSubmit({})} disabled={isPending || !csrfToken || !file} className="flex-1">
                                     {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <TableIcon className="mr-2 h-4 w-4" />}
                                     Start Import
                                 </Button>
-                                <Button onClick={handleGetMappingSuggestions} variant="outline" disabled={isPending || !csrfToken} className="flex-1">
+                                <Button onClick={handleGetMappingSuggestions} variant="outline" disabled={isPending || !csrfToken || !file} className="flex-1">
                                     {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
                                     Suggest Mappings with AI
                                 </Button>

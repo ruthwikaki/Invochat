@@ -2,7 +2,7 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, PurchaseOrderFormData, ChannelFee, Integration, SalesAnalytics, CustomerAnalytics, ReorderSuggestion, PurchaseOrderWithItems, PurchaseOrderWithItemsAndSupplier, AuditLogEntry, FeedbackWithMessages } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, PurchaseOrderFormData, ChannelFee, Integration, SalesAnalytics, CustomerAnalytics, ReorderSuggestion, PurchaseOrderWithItems, PurchaseOrderWithItemsAndSupplier, AuditLogEntry, FeedbackWithMessages, DashboardMetrics, InventoryAnalytics, SupplierFormData, Order } from '@/types';
 import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, SupplierPerformanceReportSchema, ReorderSuggestionSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, InventoryAnalyticsSchema, SupplierFormSchema, DashboardMetricsSchema } from '@/types';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
@@ -10,6 +10,9 @@ import type { Json } from '@/types/database.types';
 import { logger } from '@/lib/logger';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
 import { config } from '@/config/app-config';
+
+// Re-export the getServiceRoleClient function
+export { getServiceRoleClient };
 
 // --- Input Validation Schemas ---
 const DatabaseQueryParamsSchema = z.object({
@@ -865,8 +868,32 @@ export async function getDashboardMetrics(companyId: string, period: string): Pr
             };
         }
         
+        // Handle case where RPC returns array instead of object
+        const metricsData = Array.isArray(data) && data.length > 0 ? data[0] : data;
+        
+        if (!metricsData || typeof metricsData !== 'object') {
+            logger.warn('[RPC Error] get_dashboard_metrics returned invalid data format.');
+            return {
+                total_revenue: 0,
+                revenue_change: 0,
+                total_orders: 0,
+                orders_change: 0,
+                new_customers: 0,
+                customers_change: 0,
+                dead_stock_value: 0,
+                sales_over_time: [],
+                top_products: [],
+                inventory_summary: {
+                    total_value: 0,
+                    in_stock_value: 0,
+                    low_stock_value: 0,
+                    dead_stock_value: 0,
+                },
+            };
+        }
+        
         // Ensure the data from the RPC conforms to the Zod schema before returning
-        return DashboardMetricsSchema.parse(data);
+        return DashboardMetricsSchema.parse(metricsData);
     } catch (e) {
         logError(e, { context: 'getDashboardMetrics failed', companyId, period });
         throw new Error('Could not retrieve dashboard metrics from the database.');

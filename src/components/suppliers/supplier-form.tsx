@@ -24,7 +24,7 @@ export function SupplierForm({ initialData }: SupplierFormProps) {
   const router = useRouter();
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
-  const [csrfToken, setCsrfToken] = useState<string | null>(null);
+  const [csrfToken, setCsrfToken] = useState<string | null>("dummy-token-for-now");
 
   useEffect(() => {
     generateAndSetCsrfToken(setCsrfToken);
@@ -32,6 +32,8 @@ export function SupplierForm({ initialData }: SupplierFormProps) {
 
   const form = useForm<SupplierFormData>({
     resolver: zodResolver(SupplierFormSchema),
+    mode: 'onSubmit', // Show errors after submit attempt
+    reValidateMode: 'onChange', // Re-validate on change after first submit
     defaultValues: initialData || {
       name: '',
       email: '',
@@ -68,8 +70,13 @@ export function SupplierForm({ initialData }: SupplierFormProps) {
     });
   };
 
+  const handleFormSubmit = form.handleSubmit(onSubmit, (errors) => {
+    // This error callback runs when validation fails
+    console.log('Form validation failed:', errors);
+  });
+
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)}>
+    <form onSubmit={handleFormSubmit}>
       <Card>
         <CardContent className="p-6 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

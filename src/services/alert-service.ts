@@ -47,7 +47,7 @@ export async function updateAlertSettings(companyId: string, settings: Partial<C
   const supabase = getServiceRoleClient();
   const { error } = await supabase
     .from('company_settings')
-    .update({ alert_settings: settings.alert_settings }) 
+    .update({ alert_settings: settings.alert_settings ? JSON.parse(JSON.stringify(settings.alert_settings)) : null }) 
     .eq('company_id', companyId);
   
   if (error) {

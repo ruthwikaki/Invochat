@@ -46,7 +46,7 @@ describe('Universal Chat Flow', () => {
 
         const finalResponsePromptMock = vi.fn().mockResolvedValue({ output: mockFinalResponse });
         const generateMock = vi.fn().mockResolvedValue({
-            toolRequests: [{ name: 'getReorderSuggestions', input: { companyId: mockCompanyId } }],
+            toolRequests: [{ toolRequest: { name: 'getReorderSuggestions', input: { companyId: mockCompanyId } } }],
             text: ''
         });
         

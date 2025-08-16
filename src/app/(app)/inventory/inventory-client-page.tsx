@@ -16,7 +16,7 @@ import { Package, Sparkles } from 'lucide-react';
 import { ExportButton } from '@/components/ui/export-button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatCentsAsCurrency } from '@/lib/utils';
-import { InventoryHistoryDialog } from './inventory-history-dialog';
+import { InventoryHistoryDialog } from '@/components/inventory/inventory-history-dialog';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { useTableState } from '@/hooks/use-table-state';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -253,10 +253,10 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                 <Table data-testid="inventory-table">
                     <TableHeader className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm">
                         <TableRow>
-                            <SortableHeader column="product_title" label="Product" currentSort={sortBy} currentDirection={sortDirection} onSort={handleSort} />
+                            <SortableHeader column="product_title" label="Product" currentSort={sortBy} currentDirection={sortDirection as 'asc' | 'desc'} onSort={handleSort} />
                             <TableHead>Status</TableHead>
                             <TableHead className="text-right">Variants</TableHead>
-                            <SortableHeader column="inventory_quantity" label="Total Quantity" currentSort={sortBy} currentDirection={sortDirection} onSort={handleSort} />
+                            <SortableHeader column="inventory_quantity" label="Total Quantity" currentSort={sortBy} currentDirection={sortDirection as 'asc' | 'desc'} onSort={handleSort} />
                             <TableHead className="w-16 text-center">Actions</TableHead>
                         </TableRow>
                     </TableHeader>

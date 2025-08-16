@@ -2,6 +2,7 @@
 import { test, expect } from '@playwright/test';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { User } from '@supabase/supabase-js';
+import { login } from './test-utils';
 
 // This test suite requires direct database interaction to set up the scenarios,
 // which is why we use the Supabase admin client here.
@@ -45,13 +46,8 @@ test.describe('Security and Authorization', () => {
         test.skip(true, "Test user or other company setup failed.");
         return;
     }
-    // Log in as the test user. This simulates a real user session.
-    // The test user is automatically associated with their own new company on creation.
-    await page.goto('/login');
-    await page.fill('input[name="email"]', testUser.email!);
-    await page.fill('input[name="password"]', 'TestPass123!');
-    await page.click('button[type="submit"]');
-    await page.waitForURL('/dashboard');
+    // Log in as the test user using the robust login function
+    await login(page, { email: testUser.email!, password: 'TestPass123!' });
     
     // Now, as the logged-in user, try to access a page that implicitly fetches data
     // for a company they do not belong to. In a real scenario, this would be an attempt

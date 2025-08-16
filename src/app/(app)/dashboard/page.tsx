@@ -72,7 +72,9 @@ export default async function DashboardPage({
         settings = settingsData;
 
         // Briefing depends on metrics, so it's called after.
-        briefing = await getMorningBriefing(metrics, user?.user_metadata.company_name);
+        if (metrics) {
+            briefing = await getMorningBriefing(metrics, user?.user_metadata.company_name);
+        }
 
     } catch (error: any) {
         logger.error('Failed to fetch dashboard data', { error: error.message });
@@ -107,9 +109,9 @@ export default async function DashboardPage({
                     </Alert>
                 )}
                 <DashboardClientPage
-                    initialMetrics={metrics}
+                    initialMetrics={metrics || emptyMetrics}
                     settings={settings}
-                    initialBriefing={briefing}
+                    initialBriefing={briefing || { greeting: '', summary: '' }}
                 />
             </div>
         </AppPage>

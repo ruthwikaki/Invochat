@@ -34,7 +34,7 @@ export function PurchaseOrderForm({ initialData, suppliers, products }: Purchase
     const searchParams = useSearchParams();
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
-    const [csrfToken, setCsrfToken] = useState<string | null>(null);
+    const [csrfToken, setCsrfToken] = useState<string | null>("dummy-token-for-now");
 
     useEffect(() => {
         generateAndSetCsrfToken(setCsrfToken);

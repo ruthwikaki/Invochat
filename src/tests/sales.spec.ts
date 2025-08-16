@@ -1,27 +1,23 @@
 
 import { test, expect } from '@playwright/test';
-import type { Page } from '@playwright/test';
-import credentials from './test_data/test_credentials.json';
-
-const testUser = credentials.test_users[0]; // Use the first user for tests
-
-async function login(page: Page) {
-    await page.goto('/login');
-    await page.fill('input[name="email"]', testUser.email);
-    await page.fill('input[name="password"]', 'TestPass123!');
-    await page.click('button[type="submit"]');
-    await page.waitForURL('/dashboard', { timeout: 30000 });
-    await page.waitForLoadState('networkidle');
-}
 
 test.describe('Sales Page', () => {
   test.beforeEach(async ({ page }) => {
-    await login(page);
+    // Tests will use shared authentication state
     await page.goto('/sales');
     await page.waitForURL('/sales');
   });
 
   test('should load sales analytics and validate data', async ({ page }) => {
+    // Wait for page to load and scroll to ensure all elements are visible
+    await page.waitForLoadState('networkidle');
+    
+    // Scroll to top to ensure analytics cards are visible
+    await page.evaluate(() => window.scrollTo(0, 0));
+    
+    // Wait for analytics data to load
+    await page.waitForTimeout(2000);
+    
     await expect(page.getByText('Total Revenue')).toBeVisible();
     await expect(page.getByText('Total Orders')).toBeVisible();
     await expect(page.getByText('Average Order Value')).toBeVisible();
@@ -36,7 +32,21 @@ test.describe('Sales Page', () => {
   });
 
   test('should filter sales by order number', async ({ page }) => {
-    await page.fill('input[placeholder*="Search"]', 'NONEXISTENT999');
+    // Wait for page to load and scroll to ensure search input is visible
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(2000);
+    
+    // Scroll to the search area
+    await page.evaluate(() => {
+      const searchInput = document.querySelector('[data-testid="sales-search"]');
+      if (searchInput) {
+        searchInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    });
+    
+    // Wait for search input to be visible and use the test ID
+    await expect(page.getByTestId('sales-search')).toBeVisible();
+    await page.fill('[data-testid="sales-search"]', 'NONEXISTENT999');
     await page.keyboard.press('Enter');
     await page.waitForTimeout(1000);
 

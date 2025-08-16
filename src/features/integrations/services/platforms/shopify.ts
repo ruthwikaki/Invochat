@@ -139,7 +139,7 @@ export async function syncSales(integration: Integration, accessToken: string) {
         for (const order of orders) {
             const { error } = await supabase.rpc('record_order_from_platform', {
                 p_company_id: integration.company_id,
-                p_order_payload: order as Json,
+                p_order_payload: JSON.parse(JSON.stringify(order)),
                 p_platform: 'shopify'
             });
 

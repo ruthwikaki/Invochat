@@ -1,25 +1,12 @@
 
 import { test, expect } from '@playwright/test';
-import type { Page } from '@playwright/test';
-import credentials from './test_data/test_credentials.json';
-
-const testUser = credentials.test_users[0]; // Use the first user for tests
-
-async function login(page: Page) {
-    await page.goto('/login');
-    await page.fill('input[name="email"]', testUser.email);
-    await page.fill('input[name="password"]', 'TestPass123!');
-    await page.click('button[type="submit"]');
-    await page.waitForURL('/dashboard', { timeout: 30000 });
-    await page.waitForLoadState('networkidle');
-}
 
 test.describe('Supplier Management', () => {
   const newSupplierName = `Test Supplier ${Date.now()}`;
   const newSupplierEmail = `test-${Date.now()}@example.com`;
 
   test.beforeEach(async ({ page }) => {
-    await login(page);
+    // Tests will use shared authentication state
     await page.goto('/suppliers');
     await page.waitForURL('/suppliers');
   });
@@ -33,10 +20,28 @@ test.describe('Supplier Management', () => {
     await page.fill('input[name="name"]', newSupplierName);
     await page.fill('input[name="email"]', newSupplierEmail);
     await page.fill('input[name="default_lead_time_days"]', '14');
+    
+    // Submit and wait for either success redirect or stay on form with error
     await page.click('button[type="submit"]');
+    
+    // Wait a bit for form processing
+    await page.waitForTimeout(2000);
+    
+    // Check if we're back on suppliers page (success) or still on form (error)
+    const currentUrl = page.url();
+    if (currentUrl.includes('/suppliers/new')) {
+      // Still on form, check for errors
+      const errorElement = page.locator('.text-destructive, .text-red-500, [role="alert"]').first();
+      if (await errorElement.isVisible()) {
+        const errorText = await errorElement.textContent();
+        throw new Error(`Form submission failed: ${errorText}`);
+      } else {
+        throw new Error('Form submission did not redirect and no error shown');
+      }
+    }
 
     // 2. Verify the supplier was created and is in the list
-    await page.waitForURL('/suppliers');
+    await page.waitForURL('/suppliers', { timeout: 10000 });
     const newRow = page.locator('tr', { hasText: newSupplierName });
     await expect(newRow).toBeVisible();
     await expect(newRow).toContainText(newSupplierEmail);

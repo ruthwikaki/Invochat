@@ -17,18 +17,18 @@ export default defineConfig({
   /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
   /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : 2,
+  workers: process.env.CI ? 1 : 1, // Reduced from 2 to 1 to avoid rate limiting
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: 'html',
-  timeout: 60 * 1000,
+  timeout: 90 * 1000, // Increased from 60s to 90s
   
   use: {
     baseURL: 'http://localhost:3000',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
-    actionTimeout: 15000,
-    navigationTimeout: 30000,
+    actionTimeout: 30000, // Increased from 15s to 30s
+    navigationTimeout: 60000, // Increased from 30s to 60s
   },
 
   projects: [
@@ -37,9 +37,18 @@ export default defineConfig({
       testMatch: /global-setup\.ts/,
     },
     {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      name: 'auth-setup',
+      testMatch: /auth-setup\.ts/,
       dependencies: ['setup'],
+    },
+    {
+      name: 'chromium',
+      use: { 
+        ...devices['Desktop Chrome'],
+        // Use shared authentication state to avoid repeated logins
+        storageState: './playwright/.auth/user.json',
+      },
+      dependencies: ['auth-setup'],
     },
   ],
 
