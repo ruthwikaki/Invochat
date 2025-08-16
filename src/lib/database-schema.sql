@@ -1,50 +1,15 @@
--- src/lib/database-schema.sql
--- This file is the single source of truth for the database schema.
--- It is designed to be idempotent and can be run on a fresh database.
 
--- Drop existing objects in reverse order of dependency to ensure a clean slate.
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-DROP FUNCTION IF EXISTS public.handle_new_user();
-DROP VIEW IF EXISTS public.sales;
-DROP VIEW IF EXISTS public.customers_view;
-DROP VIEW IF EXISTS public.orders_view;
-DROP VIEW IF EXISTS public.product_variants_with_details;
-DROP VIEW IF EXISTS public.inventory;
-DROP VIEW IF EXISTS public.purchase_orders_view;
-DROP VIEW IF EXISTS public.audit_log_view;
-DROP VIEW IF EXISTS public.feedback_view;
+-- Enable the UUID extension
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA "extensions";
 
--- Drop functions that will be recreated
-DROP FUNCTION IF EXISTS public.get_dashboard_metrics(uuid,integer);
-DROP FUNCTION IF EXISTS public.get_sales_analytics(uuid);
-DROP FUNCTION IF EXISTS public.get_inventory_analytics(uuid);
-DROP FUNCTION IF EXISTS public.get_customer_analytics(uuid);
-DROP FUNCTION IF EXISTS public.get_dead_stock_report(uuid);
-DROP FUNCTION IF EXISTS public.get_reorder_suggestions(uuid);
-DROP FUNCTION IF EXISTS public.get_supplier_performance_report(uuid);
-DROP FUNCTION IF EXISTS public.get_inventory_turnover(uuid, integer);
-DROP FUNCTION IF EXISTS public.get_abc_analysis(uuid);
-DROP FUNCTION IF EXISTS public.forecast_demand(uuid);
-DROP FUNCTION IF EXISTS public.get_sales_velocity(uuid,integer,integer);
-DROP FUNCTION IF EXISTS public.get_margin_trends(uuid);
-DROP FUNCTION IF EXISTS public.get_gross_margin_analysis(uuid);
-DROP FUNCTION IF EXISTS public.get_net_margin_by_channel(uuid,text);
-DROP FUNCTION IF EXISTS public.get_financial_impact_of_promotion(uuid,text[],double precision,integer);
-DROP FUNCTION IF EXISTS public.get_historical_sales_for_sku(uuid,text);
-DROP FUNCTION IF EXISTS public.get_historical_sales_for_skus(uuid,text[]);
-DROP FUNCTION IF EXISTS public.check_user_permission(uuid, public.company_role);
-DROP FUNCTION IF EXISTS public.get_users_for_company(uuid);
-DROP FUNCTION IF EXISTS public.remove_user_from_company(uuid,uuid);
-DROP FUNCTION IF EXISTS public.update_user_role_in_company(uuid,uuid,public.company_role);
-DROP FUNCTION IF EXISTS public.adjust_inventory_quantity(uuid,uuid,integer,text,uuid);
-DROP FUNCTION IF EXISTS public.create_full_purchase_order(uuid,uuid,uuid,text,text,date,jsonb);
-DROP FUNCTION IF EXISTS public.update_full_purchase_order(uuid,uuid,uuid,uuid,text,text,date,jsonb);
-DROP FUNCTION IF EXISTS public.create_purchase_orders_from_suggestions(uuid,uuid,jsonb);
-DROP FUNCTION IF EXISTS public.record_order_from_platform(uuid,jsonb,text);
-DROP FUNCTION IF EXISTS public.reconcile_inventory_from_integration(uuid,uuid,uuid);
-DROP FUNCTION IF EXISTS public.refresh_all_matviews(uuid);
+-- Enable the pgcrypto extension for encryption
+CREATE EXTENSION IF NOT EXISTS "pgcrypto" WITH SCHEMA "extensions";
 
--- Recreate types
+-- Set up PostGIS for spatial queries if needed in the future
+-- CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA extensions;
+
+
+-- Create custom types for roles and platforms
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'company_role') THEN
@@ -54,61 +19,46 @@ BEGIN
         CREATE TYPE public.integration_platform AS ENUM ('shopify', 'woocommerce', 'amazon_fba');
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'message_role') THEN
-        CREATE TYPE public.message_role AS ENUM ('user', 'assistant', 'tool');
+        CREATE TYPE public.message_role AS ENUM ('user', 'assistant', 'system', 'tool');
     END IF;
-     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'feedback_type') THEN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'feedback_type') THEN
         CREATE TYPE public.feedback_type AS ENUM ('helpful', 'unhelpful');
     END IF;
-END$$;
+END
+$$;
 
-
--- Create tables
+-- Create Companies Table
 CREATE TABLE IF NOT EXISTS public.companies (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     name text NOT NULL,
     owner_id uuid NOT NULL REFERENCES auth.users(id),
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
+-- Create Company Users Junction Table
 CREATE TABLE IF NOT EXISTS public.company_users (
-    user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     role public.company_role DEFAULT 'Member'::public.company_role NOT NULL,
-    PRIMARY KEY (user_id, company_id)
-);
-CREATE UNIQUE INDEX IF NOT EXISTS ux_company_users_user ON public.company_users (user_id);
-
-
-CREATE TABLE IF NOT EXISTS public.company_settings (
-    company_id uuid PRIMARY KEY NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    dead_stock_days integer DEFAULT 90 NOT NULL,
-    fast_moving_days integer DEFAULT 30 NOT NULL,
-    predictive_stock_days integer DEFAULT 7 NOT NULL,
-    currency text DEFAULT 'USD'::text NOT NULL,
-    timezone text DEFAULT 'UTC'::text NOT NULL,
-    tax_rate real DEFAULT 0 NOT NULL,
-    overstock_multiplier real DEFAULT 3 NOT NULL,
-    high_value_threshold integer DEFAULT 100000 NOT NULL,
-    alert_settings jsonb DEFAULT '{}'::jsonb NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone
+    PRIMARY KEY (company_id, user_id)
 );
 
-
+-- Create Suppliers Table
 CREATE TABLE IF NOT EXISTS public.suppliers (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     name text NOT NULL,
     email text,
     phone text,
-    default_lead_time_days integer,
     notes text,
+    default_lead_time_days integer,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone
 );
 
+-- Create Products Table
 CREATE TABLE IF NOT EXISTS public.products (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     external_product_id text,
     title text NOT NULL,
@@ -120,11 +70,14 @@ CREATE TABLE IF NOT EXISTS public.products (
     image_url text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone,
-    UNIQUE (company_id, external_product_id)
+    deleted_at timestamp with time zone,
+    version integer DEFAULT 1 NOT NULL,
+    CONSTRAINT unique_product_external_id UNIQUE(company_id, external_product_id)
 );
 
+-- Create Product Variants Table
 CREATE TABLE IF NOT EXISTS public.product_variants (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     external_variant_id text,
@@ -137,22 +90,28 @@ CREATE TABLE IF NOT EXISTS public.product_variants (
     option3_name text,
     option3_value text,
     barcode text,
-    price integer,
-    compare_at_price integer,
-    cost integer,
+    price integer, -- in cents
+    compare_at_price integer, -- in cents
+    cost integer, -- in cents
     inventory_quantity integer DEFAULT 0 NOT NULL,
+    reserved_quantity integer DEFAULT 0 NOT NULL,
+    in_transit_quantity integer DEFAULT 0 NOT NULL,
     location text,
+    supplier_id uuid REFERENCES public.suppliers(id) ON DELETE SET NULL,
     reorder_point integer,
     reorder_quantity integer,
-    supplier_id uuid REFERENCES public.suppliers(id) ON DELETE SET NULL,
+    lead_time_days integer,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone,
-    UNIQUE (company_id, sku),
-    UNIQUE (company_id, external_variant_id)
+    deleted_at timestamp with time zone,
+    version integer DEFAULT 1 NOT NULL,
+    CONSTRAINT unique_variant_external_id UNIQUE (company_id, external_variant_id),
+    CONSTRAINT unique_variant_sku UNIQUE (company_id, sku)
 );
 
+-- Create Customers Table
 CREATE TABLE IF NOT EXISTS public.customers (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     external_customer_id text,
     name text,
@@ -160,83 +119,119 @@ CREATE TABLE IF NOT EXISTS public.customers (
     phone text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone,
-    deleted_at timestamp with time zone
+    deleted_at timestamp with time zone,
+    CONSTRAINT unique_customer_external_id UNIQUE(company_id, external_customer_id)
 );
 
+-- Create Orders Table
 CREATE TABLE IF NOT EXISTS public.orders (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     external_order_id text,
     order_number text NOT NULL,
-    customer_id uuid REFERENCES public.customers(id),
+    customer_id uuid REFERENCES public.customers(id) ON DELETE SET NULL,
     financial_status text,
     fulfillment_status text,
     currency text,
     subtotal integer NOT NULL,
-    total_discounts integer,
-    total_shipping integer,
     total_tax integer,
+    total_shipping integer,
+    total_discounts integer,
     total_amount integer NOT NULL,
     source_platform text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone,
-    UNIQUE (company_id, external_order_id)
+    CONSTRAINT unique_order_external_id UNIQUE(company_id, external_order_id)
 );
 
+-- Create Order Line Items Table
 CREATE TABLE IF NOT EXISTS public.order_line_items (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     order_id uuid NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
-    variant_id uuid REFERENCES public.product_variants(id),
+    variant_id uuid REFERENCES public.product_variants(id) ON DELETE SET NULL,
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     external_line_item_id text,
     product_name text,
     variant_title text,
     sku text,
     quantity integer NOT NULL,
-    price integer NOT NULL,
-    total_discount integer,
-    tax_amount integer,
-    cost_at_time integer
+    price integer NOT NULL, -- in cents
+    total_discount integer, -- in cents
+    tax_amount integer, -- in cents
+    cost_at_time integer -- in cents
 );
 
+-- Create Refunds Table
+CREATE TABLE IF NOT EXISTS public.refunds (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    order_id uuid NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+    external_refund_id text,
+    refund_number text NOT NULL,
+    status text NOT NULL,
+    reason text,
+    note text,
+    total_amount integer NOT NULL,
+    created_by_user_id uuid REFERENCES auth.users(id),
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- Create Purchase Orders Table
 CREATE TABLE IF NOT EXISTS public.purchase_orders (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     supplier_id uuid REFERENCES public.suppliers(id),
     po_number text NOT NULL,
-    status text DEFAULT 'Draft'::text NOT NULL,
-    expected_arrival_date date,
+    status text NOT NULL DEFAULT 'Draft',
     total_cost integer NOT NULL,
-    notes text,
+    expected_arrival_date date,
     idempotency_key uuid,
+    notes text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone
 );
 
+-- Create Purchase Order Line Items Table
 CREATE TABLE IF NOT EXISTS public.purchase_order_line_items (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     purchase_order_id uuid NOT NULL REFERENCES public.purchase_orders(id) ON DELETE CASCADE,
-    variant_id uuid NOT NULL REFERENCES public.product_variants(id) ON DELETE CASCADE,
+    variant_id uuid NOT NULL REFERENCES public.product_variants(id),
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     quantity integer NOT NULL,
-    cost integer NOT NULL
+    cost integer NOT NULL -- in cents
 );
 
-CREATE TABLE IF NOT EXISTS public.inventory_ledger (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+-- Create Integrations Table
+CREATE TABLE IF NOT EXISTS public.integrations (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    variant_id uuid NOT NULL REFERENCES public.product_variants(id) ON DELETE CASCADE,
-    change_type text NOT NULL,
+    platform public.integration_platform NOT NULL,
+    shop_domain text,
+    shop_name text,
+    is_active boolean DEFAULT true,
+    last_sync_at timestamp with time zone,
+    sync_status text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    CONSTRAINT unique_company_platform UNIQUE (company_id, platform)
+);
+
+-- Create Inventory Ledger Table
+CREATE TABLE IF NOT EXISTS public.inventory_ledger (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    variant_id uuid NOT NULL REFERENCES public.product_variants(id),
     quantity_change integer NOT NULL,
     new_quantity integer NOT NULL,
-    related_id uuid,
+    change_type text NOT NULL, -- e.g., 'sale', 'purchase_order', 'manual_adjustment', 'reconciliation'
+    related_id uuid, -- e.g., order_id, po_id
     notes text,
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
--- AI & App specific tables
+-- Create Conversations Table
 CREATE TABLE IF NOT EXISTS public.conversations (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     title text NOT NULL,
@@ -245,80 +240,61 @@ CREATE TABLE IF NOT EXISTS public.conversations (
     is_starred boolean DEFAULT false NOT NULL
 );
 
+-- Create Messages Table
 CREATE TABLE IF NOT EXISTS public.messages (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     conversation_id uuid NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     role public.message_role NOT NULL,
     content text NOT NULL,
     visualization jsonb,
     component text,
-    "componentProps" jsonb,
-    confidence real,
+    component_props jsonb,
+    confidence double precision,
     assumptions text[],
-    "isError" boolean,
+    is_error boolean,
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
--- ... Other tables from your original schema (integrations, etc.) go here ...
-CREATE TABLE IF NOT EXISTS public.integrations (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    platform public.integration_platform NOT NULL,
-    shop_name text,
-    shop_domain text,
-    is_active boolean DEFAULT true NOT NULL,
-    sync_status text,
-    last_sync_at timestamp with time zone,
+-- Create Company Settings Table
+CREATE TABLE IF NOT EXISTS public.company_settings (
+    company_id uuid PRIMARY KEY REFERENCES public.companies(id) ON DELETE CASCADE,
+    dead_stock_days integer DEFAULT 90 NOT NULL,
+    fast_moving_days integer DEFAULT 30 NOT NULL,
+    predictive_stock_days integer DEFAULT 7 NOT NULL,
+    currency text DEFAULT 'USD' NOT NULL,
+    timezone text DEFAULT 'UTC' NOT NULL,
+    tax_rate numeric(5,4) DEFAULT 0.00 NOT NULL,
+    overstock_multiplier integer DEFAULT 3 NOT NULL,
+    high_value_threshold integer DEFAULT 100000 NOT NULL, -- in cents
+    alert_settings jsonb,
+    email_notifications boolean DEFAULT true NOT NULL,
+    morning_briefing_enabled boolean DEFAULT true NOT NULL,
+    morning_briefing_time time without time zone DEFAULT '08:00:00' NOT NULL,
+    low_stock_threshold integer DEFAULT 10 NOT NULL,
+    critical_stock_threshold integer DEFAULT 3 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone,
-    UNIQUE (company_id, platform)
+    updated_at timestamp with time zone
 );
 
-CREATE TABLE IF NOT EXISTS public.webhook_events (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    integration_id uuid NOT NULL REFERENCES public.integrations(id) ON DELETE CASCADE,
-    webhook_id text NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    UNIQUE (integration_id, webhook_id)
-);
-
-
-CREATE TABLE IF NOT EXISTS public.audit_log (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    user_id uuid REFERENCES auth.users(id),
-    action text NOT NULL,
-    details jsonb,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS public.feedback (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    subject_id text NOT NULL,
-    subject_type text NOT NULL,
-    feedback public.feedback_type NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
+-- Create Channel Fees Table
 CREATE TABLE IF NOT EXISTS public.channel_fees (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     channel_name text NOT NULL,
-    percentage_fee real,
-    fixed_fee integer,
+    percentage_fee numeric(5,2),
+    fixed_fee integer, -- in cents
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone,
-    UNIQUE (company_id, channel_name)
+    CONSTRAINT unique_company_channel UNIQUE (company_id, channel_name)
 );
 
+-- Create Export Jobs Table
 CREATE TABLE IF NOT EXISTS public.export_jobs (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    requested_by_user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    status text DEFAULT 'pending'::text NOT NULL,
+    requested_by_user_id uuid NOT NULL REFERENCES auth.users(id),
+    status text NOT NULL DEFAULT 'pending', -- pending, processing, completed, failed
     download_url text,
     expires_at timestamp with time zone,
     error_message text,
@@ -326,285 +302,269 @@ CREATE TABLE IF NOT EXISTS public.export_jobs (
     completed_at timestamp with time zone
 );
 
+-- Create Audit Log Table
+CREATE TABLE IF NOT EXISTS public.audit_log (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    user_id uuid REFERENCES auth.users(id),
+    action text NOT NULL,
+    details jsonb,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
 
--- Function to handle new user creation
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER SET search_path = public
+-- Create Alert History Table (for read/dismiss status)
+CREATE TABLE IF NOT EXISTS public.alert_history (
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    alert_id text NOT NULL, -- Not a FK, corresponds to a dynamically generated alert
+    status text NOT NULL, -- 'read' or 'dismissed'
+    read_at timestamp with time zone,
+    dismissed_at timestamp with time zone,
+    PRIMARY KEY (company_id, alert_id)
+);
+
+
+-- Create Feedback Table
+CREATE TABLE IF NOT EXISTS public.feedback (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    subject_id text NOT NULL, -- ID of the thing being rated (e.g., message_id)
+    subject_type text NOT NULL, -- e.g., 'message', 'report'
+    feedback public.feedback_type NOT NULL, -- 'helpful' or 'unhelpful'
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- Create a table to track webhook events and prevent replay attacks
+CREATE TABLE IF NOT EXISTS public.webhook_events (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    integration_id uuid NOT NULL REFERENCES public.integrations(id) ON DELETE CASCADE,
+    webhook_id text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    UNIQUE (integration_id, webhook_id)
+);
+
+-- Set up Row Level Security (RLS) policies
+-- Enable RLS for all relevant tables
+ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.company_users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.suppliers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.product_variants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.order_line_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.purchase_orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.purchase_order_line_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.integrations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.inventory_ledger ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.company_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.channel_fees ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.export_jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.alert_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.feedback ENABLE ROW LEVEL SECURITY;
+
+-- Helper function to get the company_id for the current user
+CREATE OR REPLACE FUNCTION public.get_company_id_for_user(p_user_id uuid)
+RETURNS uuid
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
 AS $$
-DECLARE
-  v_company_id uuid;
-  v_name text;
-  v_lock_key bigint;
+    SELECT company_id FROM public.company_users WHERE user_id = p_user_id LIMIT 1;
+$$;
+
+-- Generic RLS policy for tables with a company_id column
+CREATE OR REPLACE FUNCTION public.create_company_rls_policy(table_name text)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
 BEGIN
-  -- Use an advisory lock to prevent race conditions from concurrent signups
-  v_lock_key := ('x' || substr(md5(new.id::text), 1, 16))::bit(64)::bigint;
-  PERFORM pg_advisory_xact_lock(v_lock_key);
-
-  -- Check if the user is already associated with a company (idempotency)
-  SELECT company_id INTO v_company_id FROM public.company_users WHERE user_id = new.id LIMIT 1;
-  IF v_company_id IS NOT NULL THEN
-    RETURN new; -- Already handled
-  END IF;
-
-  -- Get company name from metadata or generate a default
-  v_name := COALESCE(new.raw_user_meta_data->>'company_name', 'Company for ' || COALESCE(new.email, new.id::text));
-
-  -- Create a new company for the user
-  INSERT INTO public.companies (name, owner_id)
-  VALUES (v_name, new.id)
-  RETURNING id INTO v_company_id;
-
-  -- Create default settings for the new company
-  INSERT INTO public.company_settings (company_id)
-  VALUES (v_company_id)
-  ON CONFLICT (company_id) DO NOTHING;
-
-  -- Associate the user with the new company
-  INSERT INTO public.company_users (user_id, company_id, role)
-  VALUES (new.id, v_company_id, 'Owner')
-  ON CONFLICT (user_id, company_id) DO NOTHING;
-
-  -- Update the user's app_metadata with the new company_id
-  UPDATE auth.users
-  SET raw_app_meta_data = COALESCE(raw_app_meta_data, '{}'::jsonb) || jsonb_build_object('company_id', v_company_id)
-  WHERE id = new.id;
-  
-  RETURN new;
+    EXECUTE format('
+        DROP POLICY IF EXISTS "Enable access for company members" ON public.%I;
+        CREATE POLICY "Enable access for company members"
+        ON public.%I
+        FOR ALL
+        TO authenticated
+        USING (company_id = public.get_company_id_for_user(auth.uid()))
+        WITH CHECK (company_id = public.get_company_id_for_user(auth.uid()));
+    ', table_name, table_name);
 END;
 $$;
 
--- Ensure the function is owned by postgres to have the necessary permissions
-ALTER FUNCTION public.handle_new_user() OWNER TO postgres;
+-- Apply the generic RLS policy to all company-scoped tables
+SELECT public.create_company_rls_policy(table_name)
+FROM information_schema.tables
+WHERE table_schema = 'public' AND table_name IN (
+    'suppliers', 'products', 'product_variants', 'customers', 'orders', 'order_line_items',
+    'purchase_orders', 'purchase_order_line_items', 'integrations', 'inventory_ledger',
+    'conversations', 'messages', 'company_settings', 'channel_fees', 'export_jobs',
+    'audit_log', 'alert_history', 'feedback'
+);
+
+-- RLS for companies table (users can see their own company)
+DROP POLICY IF EXISTS "Users can see their own company" ON public.companies;
+CREATE POLICY "Users can see their own company"
+ON public.companies
+FOR SELECT
+TO authenticated
+USING (id = public.get_company_id_for_user(auth.uid()));
+
+-- RLS for company_users table (users can see their own membership)
+DROP POLICY IF EXISTS "Users can see their own company membership" ON public.company_users;
+CREATE POLICY "Users can see their own company membership"
+ON public.company_users
+FOR SELECT
+TO authenticated
+USING (user_id = auth.uid());
+
+
+-- Create a function to be called by a trigger on new user signup
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  new_company_id uuid;
+  company_name text;
+BEGIN
+    -- Extract company name from user metadata, default if not present
+    company_name := new.raw_user_meta_data->>'company_name';
+    IF company_name IS NULL OR company_name = '' THEN
+        company_name := new.email;
+    END IF;
+
+    -- Create a new company for the new user
+    INSERT INTO public.companies (name, owner_id)
+    VALUES (company_name, new.id)
+    RETURNING id INTO new_company_id;
+
+    -- Link the user to the new company as an Owner
+    INSERT INTO public.company_users (company_id, user_id, role)
+    VALUES (new_company_id, new.id, 'Owner');
+
+    -- Create default settings for the new company
+    INSERT INTO public.company_settings (company_id)
+    VALUES (new_company_id);
+
+    -- Update the user's app_metadata with the new company_id
+    -- This makes it available in the JWT for RLS policies
+    UPDATE auth.users
+    SET app_metadata = app_metadata || jsonb_build_object('company_id', new_company_id)
+    WHERE id = new.id;
+    
+    RETURN new;
+END;
+$$;
 
 -- Create the trigger on the auth.users table
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 
--- VIEWS
+-- Create a view for product variants that includes product details
+-- This simplifies many common queries.
 CREATE OR REPLACE VIEW public.product_variants_with_details AS
-SELECT
+SELECT 
     pv.id,
     pv.product_id,
     pv.company_id,
-    pv.external_variant_id,
     pv.sku,
     pv.title,
+    p.title AS product_title,
+    p.status AS product_status,
+    p.image_url,
+    p.product_type,
+    pv.price,
+    pv.compare_at_price,
+    pv.cost,
+    pv.inventory_quantity,
+    pv.location,
+    pv.barcode,
+    pv.external_variant_id,
+    pv.supplier_id,
+    pv.reorder_point,
+    pv.reorder_quantity,
     pv.option1_name,
     pv.option1_value,
     pv.option2_name,
     pv.option2_value,
     pv.option3_name,
     pv.option3_value,
-    pv.barcode,
-    pv.price,
-    pv.compare_at_price,
-    pv.cost,
-    pv.inventory_quantity,
-    pv.location,
-    pv.reorder_point,
-    pv.reorder_quantity,
-    pv.supplier_id,
     pv.created_at,
     pv.updated_at,
-    p.title AS product_title,
-    p.description AS product_description,
-    p.handle AS product_handle,
-    p.product_type,
-    p.status AS product_status,
-    p.tags AS product_tags,
-    p.image_url
-FROM public.product_variants pv
-JOIN public.products p ON pv.product_id = p.id;
+    (p.title || ' ' || COALESCE(pv.title, '') || ' ' || pv.sku) AS fts
+FROM 
+    public.product_variants pv
+JOIN 
+    public.products p ON pv.product_id = p.id;
 
-CREATE OR REPLACE VIEW public.sales AS
-SELECT
-    o.id AS order_id,
-    o.company_id,
-    o.order_number,
-    o.created_at,
-    o.source_platform,
-    o.customer_id,
-    oli.id AS line_item_id,
-    oli.variant_id,
-    oli.sku,
-    oli.product_name,
-    oli.quantity,
-    oli.price,
-    oli.cost_at_time,
-    (oli.price * oli.quantity) AS total_revenue,
-    ((oli.price - COALESCE(oli.cost_at_time, 0)) * oli.quantity) AS total_profit
-FROM public.orders o
-JOIN public.order_line_items oli ON o.id = oli.order_id
-WHERE o.financial_status = 'paid';
+-- Fix missing get_dead_stock_report function
+-- This function is referenced by get_dashboard_metrics but was never defined.
 
-CREATE OR REPLACE VIEW public.customers_view AS
- SELECT c.id,
-    c.company_id,
-    c.name as customer_name,
-    c.email,
-    c.phone,
-    c.created_at,
-    c.updated_at,
-    c.deleted_at,
-    count(o.id) AS total_orders,
-    sum(o.total_amount) AS total_spent,
-    min(o.created_at) AS first_order_date
-   FROM (public.customers c
-     LEFT JOIN public.orders o ON (((c.id = o.customer_id) AND (c.company_id = o.company_id))))
-  WHERE (c.deleted_at IS NULL)
-  GROUP BY c.id, c.company_id, c.name, c.email, c.phone, c.created_at, c.updated_at, c.deleted_at;
-
-
-CREATE OR REPLACE VIEW public.orders_view AS
- SELECT o.id,
-    o.company_id,
-    o.external_order_id,
-    o.order_number,
-    o.customer_id,
-    o.financial_status,
-    o.fulfillment_status,
-    o.currency,
-    o.subtotal,
-    o.total_discounts,
-    o.total_shipping,
-    o.total_tax,
-    o.total_amount,
-    o.source_platform,
-    o.created_at,
-    o.updated_at,
-    c.email AS customer_email
-   FROM (public.orders o
-     LEFT JOIN public.customers c ON ((o.customer_id = c.id)));
-
-
--- FUNCTIONS
-CREATE OR REPLACE FUNCTION public.get_dashboard_metrics(p_company_id uuid, p_days integer)
-RETURNS jsonb
-LANGUAGE sql STABLE
-AS $$
-WITH date_series AS (
-    SELECT generate_series(
-        CURRENT_DATE - (p_days - 1) * INTERVAL '1 day',
-        CURRENT_DATE,
-        '1 day'::interval
-    )::date AS day
-),
-daily_sales AS (
-    SELECT
-        (s.created_at AT TIME ZONE 'UTC')::date AS sale_date,
-        SUM(s.total_amount) AS daily_revenue
-    FROM public.orders s
-    WHERE s.company_id = p_company_id
-      AND s.financial_status = 'paid'
-      AND s.created_at >= (CURRENT_DATE - (p_days - 1) * INTERVAL '1 day')
-    GROUP BY 1
-),
-sales_over_time AS (
-    SELECT
-        ds.day::text AS date,
-        COALESCE(d.daily_revenue, 0) AS revenue
-    FROM date_series ds
-    LEFT JOIN daily_sales d ON ds.day = d.sale_date
-    ORDER BY ds.day
-),
-current_period_sales AS (
-    SELECT
-        SUM(total_amount) AS total_revenue,
-        COUNT(id) AS total_orders
-    FROM public.orders
-    WHERE company_id = p_company_id
-      AND financial_status = 'paid'
-      AND created_at >= (CURRENT_DATE - (p_days - 1) * INTERVAL '1 day')
-),
-previous_period_sales AS (
-    SELECT
-        SUM(total_amount) AS total_revenue,
-        COUNT(id) AS total_orders
-    FROM public.orders
-    WHERE company_id = p_company_id
-      AND financial_status = 'paid'
-      AND created_at >= (CURRENT_DATE - (p_days * 2 - 1) * INTERVAL '1 day')
-      AND created_at < (CURRENT_DATE - (p_days - 1) * INTERVAL '1 day')
-),
-customers_stats AS (
-    SELECT
-        COUNT(id) as new_customers
-    FROM public.customers
-    WHERE company_id = p_company_id
-      AND created_at >= (CURRENT_DATE - (p_days - 1) * INTERVAL '1 day')
-),
-inventory_stats AS (
-    SELECT
-        SUM(pv.inventory_quantity * COALESCE(pv.cost, 0)) AS total_value,
-        SUM(CASE WHEN pv.inventory_quantity > COALESCE(cs.dead_stock_days, 90) THEN pv.inventory_quantity * COALESCE(pv.cost, 0) ELSE 0 END) AS in_stock_value,
-        SUM(CASE WHEN pv.inventory_quantity <= pv.reorder_point THEN pv.inventory_quantity * COALESCE(pv.cost, 0) ELSE 0 END) AS low_stock_value
-    FROM public.product_variants pv
-    JOIN public.company_settings cs ON pv.company_id = cs.company_id
-    WHERE pv.company_id = p_company_id
-),
-dead_stock_agg AS (
-    SELECT
-        SUM(d.total_value) as dead_stock_value
-    FROM get_dead_stock_report(p_company_id) d
+-- Create the missing get_dead_stock_report function
+CREATE OR REPLACE FUNCTION public.get_dead_stock_report(p_company_id uuid)
+RETURNS TABLE (
+    sku text,
+    product_name text,
+    quantity integer,
+    total_value numeric,
+    last_sale_date timestamp with time zone
 )
-SELECT jsonb_build_object(
-    'total_revenue', COALESCE((SELECT total_revenue FROM current_period_sales), 0),
-    'revenue_change', ((COALESCE((SELECT total_revenue FROM current_period_sales), 0) - COALESCE((SELECT total_revenue FROM previous_period_sales), 0)) / NULLIF(COALESCE((SELECT total_revenue FROM previous_period_sales), 0), 0) * 100),
-    'total_orders', COALESCE((SELECT total_orders FROM current_period_sales), 0),
-    'orders_change', ((COALESCE((SELECT total_orders FROM current_period_sales), 0)::float - COALESCE((SELECT total_orders FROM previous_period_sales), 0)::float) / NULLIF(COALESCE((SELECT total_orders FROM previous_period_sales), 0)::float, 0) * 100),
-    'new_customers', COALESCE((SELECT new_customers FROM customers_stats), 0),
-    'customers_change', 0, -- Placeholder for previous period customer comparison
-    'dead_stock_value', COALESCE((SELECT dead_stock_value FROM dead_stock_agg), 0),
-    'sales_over_time', (SELECT jsonb_agg(sot) FROM sales_over_time sot),
-    'top_selling_products', (
-        SELECT jsonb_agg(p) FROM (
-            SELECT
-                pvd.product_id,
-                pvd.product_title AS product_name,
-                pvd.image_url,
-                SUM(s.quantity) AS quantity_sold,
-                SUM(s.total_revenue) AS total_revenue
-            FROM public.sales s
-            JOIN public.product_variants_with_details pvd ON s.variant_id = pvd.id
-            WHERE s.company_id = p_company_id
-            GROUP BY 1, 2, 3
-            ORDER BY 5 DESC
-            LIMIT 5
-        ) p
+LANGUAGE sql
+STABLE
+AS $$
+    WITH company_settings AS (
+        SELECT dead_stock_days
+        FROM public.company_settings 
+        WHERE company_id = p_company_id
     ),
-    'inventory_summary', (SELECT jsonb_build_object(
-        'total_value', COALESCE(total_value,0), 'in_stock_value', COALESCE(in_stock_value,0), 'low_stock_value', COALESCE(low_stock_value,0), 'dead_stock_value', COALESCE((SELECT dead_stock_value FROM dead_stock_agg), 0)
-    ) FROM inventory_stats)
-)
+    dead_stock_cutoff AS (
+        SELECT CURRENT_DATE - INTERVAL '1 day' * COALESCE((SELECT dead_stock_days FROM company_settings), 90) AS cutoff_date
+    ),
+    last_sales AS (
+        SELECT 
+            oli.sku,
+            MAX(o.created_at) AS last_sale_date
+        FROM public.order_line_items oli
+        JOIN public.orders o ON oli.order_id = o.id
+        WHERE o.company_id = p_company_id
+            AND o.financial_status = 'paid'
+        GROUP BY oli.sku
+    ),
+    dead_stock_variants AS (
+        SELECT 
+            pv.sku,
+            pv.title AS variant_title,
+            p.title AS product_title,
+            pv.inventory_quantity,
+            COALESCE(pv.cost, 0) AS cost,
+            ls.last_sale_date
+        FROM public.product_variants pv
+        JOIN public.products p ON pv.product_id = p.id
+        LEFT JOIN last_sales ls ON pv.sku = ls.sku
+        CROSS JOIN dead_stock_cutoff dsc
+        WHERE pv.company_id = p_company_id
+            AND pv.inventory_quantity > 0
+            AND (ls.last_sale_date IS NULL OR ls.last_sale_date < dsc.cutoff_date)
+    )
+    SELECT 
+        dsv.sku,
+        COALESCE(dsv.variant_title, dsv.product_title) AS product_name,
+        dsv.inventory_quantity AS quantity,
+        (dsv.inventory_quantity * dsv.cost) AS total_value,
+        dsv.last_sale_date
+    FROM dead_stock_variants dsv
+    ORDER BY total_value DESC;
 $$;
 
-CREATE OR REPLACE FUNCTION public.get_sales_analytics(p_company_id uuid)
-RETURNS jsonb
-LANGUAGE sql STABLE
-AS $$
-    WITH s AS (
-      SELECT * FROM public.sales WHERE company_id = p_company_id
-    )
-    SELECT jsonb_build_object(
-      'total_orders', (SELECT count(DISTINCT order_id) FROM s),
-      'total_revenue', (SELECT coalesce(sum(line_total),0) FROM s),
-      'average_order_value', (SELECT coalesce(sum(line_total),0) / NULLIF(count(DISTINCT order_id), 0) FROM s)
-    )
-$$;
+-- Grant execute permissions
+GRANT EXECUTE ON FUNCTION public.get_dead_stock_report(uuid) TO authenticated;
 
-CREATE OR REPLACE FUNCTION public.get_inventory_analytics(p_company_id uuid)
-RETURNS jsonb
-LANGUAGE sql STABLE
-AS $$
-  SELECT jsonb_build_object(
-    'total_products', (SELECT count(DISTINCT product_id) FROM public.product_variants pv WHERE pv.company_id = p_company_id),
-    'total_variants', (SELECT count(*) FROM public.product_variants pv WHERE pv.company_id = p_company_id),
-    'total_inventory_units', (SELECT coalesce(sum(pv.inventory_quantity),0) FROM public.product_variants pv WHERE pv.company_id = p_company_id),
-    'total_inventory_value', (SELECT coalesce(sum(coalesce(pv.cost,0) * pv.inventory_quantity),0) FROM public.product_variants pv WHERE pv.company_id = p_company_id),
-    'low_stock_items', (SELECT count(*) FROM public.product_variants pv WHERE pv.company_id = p_company_id AND pv.inventory_quantity <= pv.reorder_point)
-  )
-$$;
+-- Add comment for documentation
+COMMENT ON FUNCTION public.get_dead_stock_report(uuid) IS 'Returns dead stock items for a company based on dead_stock_days setting and sales history';
