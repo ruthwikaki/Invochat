@@ -5,6 +5,9 @@ import credentials from './test_data/test_credentials.json';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { switchUser } from './test-utils';
 
+// Use shared authentication setup
+test.use({ storageState: 'playwright/.auth/user.json' });
+
 const adminUser = credentials.test_users[0];
 const memberUserEmail = `testmember-${Date.now()}@example.com`;
 const memberUserPassword = 'TestMemberPassword123!';
@@ -67,7 +70,7 @@ test.describe('Admin & Role Permission Tests', () => {
     });
 
     test('Admin should be able to access the Audit Log page', async ({ page }) => {
-        await login(page, adminUser);
+        // Already authenticated via shared auth, just navigate directly
         await page.goto('/settings/audit-log');
         await page.waitForURL('/settings/audit-log');
         await expect(page.getByRole('heading', { name: 'Audit Log' })).toBeVisible();
@@ -75,7 +78,7 @@ test.describe('Admin & Role Permission Tests', () => {
     });
 
     test('Admin should be able to access the AI Performance page', async ({ page }) => {
-        await login(page, adminUser);
+        // Already authenticated via shared auth, just navigate directly
         await page.goto('/analytics/ai-performance');
         await page.waitForURL('/analytics/ai-performance');
         await expect(page.getByRole('heading', { name: 'AI Performance & Feedback' })).toBeVisible();

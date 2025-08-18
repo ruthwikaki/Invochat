@@ -29,16 +29,6 @@ const HiddenMoneyOutputSchema = z.object({
   analysis: z.string().describe("A high-level summary of the findings and the overall strategy."),
 });
 
-// Schemas for safely parsing the database RPC results
-const SalesVelocityResultSchema = z.object({
-  slow_sellers: z.array(z.any()).default([]),
-}).passthrough();
-
-const MarginResultSchema = z.object({
-  products: z.array(z.any()).default([]),
-}).passthrough();
-
-
 const findHiddenMoneyPrompt = ai.definePrompt({
   name: 'findHiddenMoneyPrompt',
   input: {
@@ -82,11 +72,9 @@ export const findHiddenMoneyFlow = ai.defineFlow(
         getGrossMarginAnalysisFromDB(companyId),
       ]);
       
-      const safeSalesVelocity = SalesVelocityResultSchema.parse(salesVelocityResult || {});
-      const safeMargin = MarginResultSchema.parse(marginResult || {});
-
-      const slowSellers = safeSalesVelocity.slow_sellers;
-      const highMarginProducts = safeMargin.products;
+      // Our new database functions return arrays directly, not objects with properties
+      const slowSellers = Array.isArray(salesVelocityResult) ? salesVelocityResult : [];
+      const highMarginProducts = Array.isArray(marginResult) ? marginResult : [];
 
       if (slowSellers.length === 0 || highMarginProducts.length === 0) {
         return {

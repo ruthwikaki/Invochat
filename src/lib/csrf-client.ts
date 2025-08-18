@@ -29,8 +29,25 @@ export function getCookie(name: string): string | null {
  * @param setCsrfToken The state setter from a `useState` hook to store the token.
  */
 export async function generateAndSetCsrfToken(setCsrfToken: Dispatch<SetStateAction<string | null>>) {
-    // This functionality is currently disabled in favor of Supabase's built-in session handling.
-    // Kept for reference.
-    logger.debug("CSRF token generation via API call is disabled.");
-    setCsrfToken("dummy-token-for-now"); // Set a dummy token to enable form submission
+    try {
+        logger.debug("Starting CSRF token generation...");
+        const response = await fetch('/api/auth/csrf', { method: 'POST' });
+        const result = await response.json();
+        logger.debug("CSRF API response:", result);
+        
+        if (result.success) {
+            // Give the cookie a moment to be set, then read it
+            await new Promise(resolve => setTimeout(resolve, 100));
+            const token = getCookie(CSRF_COOKIE_NAME);
+            logger.debug("Retrieved CSRF token from cookie:", token ? "Token found" : "No token found");
+            setCsrfToken(token);
+            logger.debug("CSRF token set from cookie.");
+        } else {
+            logger.error("Failed to generate CSRF token:", result.error);
+            setCsrfToken(null);
+        }
+    } catch (error) {
+        logger.error("Error generating CSRF token:", error);
+        setCsrfToken(null);
+    }
 }

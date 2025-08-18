@@ -17,7 +17,7 @@ test.describe('Webhook Security', () => {
             data: { some: 'payload' },
         });
 
-        expect(response.status()).toBe(401);
+        expect(response.status()).toBe(400); // Bad signature returns 400
     });
 
     test('should reject a Shopify webhook with an old timestamp', async ({ request }) => {

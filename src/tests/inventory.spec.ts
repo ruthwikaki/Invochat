@@ -1,13 +1,9 @@
 
 import { test, expect } from '@playwright/test';
-import credentials from './test_data/test_credentials.json';
-import { login } from './test-utils';
-
-const testUser = credentials.test_users[0]; // Use the first user for tests
 
 test.describe('Inventory Page', () => {
   test.beforeEach(async ({ page }) => {
-    await login(page, testUser);
+    // Navigate directly to inventory page - authentication should already be handled by chromium project
     await page.goto('/inventory');
     await page.waitForURL('/inventory');
   });

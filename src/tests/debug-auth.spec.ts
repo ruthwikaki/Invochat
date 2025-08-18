@@ -6,7 +6,12 @@ const testUser = credentials.test_users[0];
 
 test('debug auth and data access', async ({ page, request }) => {
   // Login
-  await page.goto('/login');
+  await page.goto('/login', { waitUntil: 'networkidle', timeout: 60000 });
+  
+  // Wait for form elements to be ready
+  await expect(page.locator('input[name="email"]')).toBeVisible();
+  await expect(page.locator('input[name="password"]')).toBeVisible();
+  
   await page.fill('input[name="email"]', testUser.email);
   await page.fill('input[name="password"]', testUser.password);
   await page.click('button[type="submit"]');

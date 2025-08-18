@@ -25,6 +25,7 @@ const EconomicIndicatorOutputSchema = z.object({
 const economicIndicatorPrompt = ai.definePrompt({
   name: 'economicIndicatorPrompt',
   input: { schema: EconomicIndicatorInputSchema },
+  output: { schema: z.object({ value: z.string() }) },
   prompt: `You are a financial data assistant. Provide a concise, factual answer for the following economic indicator: "{{indicator}}". State only the value and the period it applies to. Example: "3.3% (May 2024)"`,
   config: {
     temperature: 0,
@@ -54,7 +55,7 @@ export const getEconomicIndicators = ai.defineTool(
         
         return {
             indicator: input.indicator,
-            value: output?.text || "Could not retrieve value."
+            value: output?.value || "Could not retrieve value."
         };
 
     } catch (e) {

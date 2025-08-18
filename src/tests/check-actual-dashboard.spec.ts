@@ -2,6 +2,9 @@
 import { test, expect } from '@playwright/test';
 import credentials from './test_data/test_credentials.json';
 
+// Use shared authentication setup
+test.use({ storageState: 'playwright/.auth/user.json' });
+
 const testUser = credentials.test_users[0];
 
 test('check dashboard data fetching', async ({ page }) => {
@@ -19,13 +22,9 @@ test('check dashboard data fetching', async ({ page }) => {
     }
   });
   
-  // Login
-  await page.goto('/login');
-  await page.fill('input[name="email"]', testUser.email);
-  await page.fill('input[name="password"]', testUser.password);
-  await page.click('button[type="submit"]');
-  
-  // Wait for dashboard with longer timeout
+  // Skip login since we're using shared authentication
+  // Navigate directly to dashboard
+  await page.goto('/dashboard');
   await page.waitForURL('/dashboard', { timeout: 30000 });
   console.log('On dashboard page');
   

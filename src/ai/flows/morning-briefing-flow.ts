@@ -54,6 +54,14 @@ export const morningBriefingPrompt = ai.definePrompt({
 });
 
 export async function generateMorningBriefing(input: { metrics: DashboardMetrics; companyName?: string }) {
+    // Return mock data if MOCK_AI is enabled
+    if (process.env.MOCK_AI === 'true') {
+        return {
+            greeting: `Good morning! Here's your ${input.companyName || 'business'} overview.`,
+            summary: `Your business generated $${input.metrics.total_revenue?.toLocaleString() || '0'} in revenue with ${input.metrics.total_orders || 0} orders. Inventory value stands at $${input.metrics.inventory_summary?.total_value?.toLocaleString() || '0'}. This is a mock briefing for testing purposes.`,
+        };
+    }
+
     const { output } = await morningBriefingPrompt(input, { model: config.ai.model });
     if (!output) {
       return {

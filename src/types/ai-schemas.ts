@@ -29,9 +29,13 @@ export const UniversalChatOutputSchema = z.object({
   data: z.any().optional().nullable().describe("The raw data retrieved from the database, if any. This could be an array of objects or a single object."),
   visualization: z.object({
     type: z.enum(['table', 'chart', 'alert', 'none']),
-    data: z.array(z.record(z.string(), z.unknown())).describe("The data used for the visualization."),
+    data: z.array(z.object({
+      value: z.unknown().optional()
+    })).describe("The data used for the visualization."),
     title: z.string().optional(),
-    config: z.record(z.string(), z.unknown()).optional()
+    config: z.object({
+      setting: z.unknown().optional()
+    }).optional()
   }).optional().describe("A suggested visualization for the data."),
   confidence: z.number().min(0).max(1).describe("A score from 0.0 (low) to 1.0 (high) indicating the AI's confidence in the generated SQL query and response."),
   assumptions: z.array(z.string()).optional().describe("A list of any assumptions the AI had to make to answer the query."),

@@ -37,13 +37,13 @@ export async function login(page: Page, user?: { email: string, password: string
     await page.goto('/login', { waitUntil: 'networkidle' });
     
     // Wait for login form to be visible and interactable
-    await page.waitForSelector('#email', { state: 'visible' });
-    await page.waitForSelector('#password', { state: 'visible' });
+    await page.waitForSelector('input[name="email"]', { state: 'visible' });
+    await page.waitForSelector('input[name="password"]', { state: 'visible' });
     await page.waitForSelector('button[type="submit"]', { state: 'visible' });
     
     // Fill form fields
-    await page.fill('#email', loginUser.email);
-    await page.fill('#password', loginUser.password);
+    await page.fill('input[name="email"]', loginUser.email);
+    await page.fill('input[name="password"]', loginUser.password);
     
     // Submit form and wait for navigation
     const navigationPromise = page.waitForURL('/dashboard', { timeout: 45000 });
@@ -66,10 +66,21 @@ export async function switchUser(page: Page, user: { email: string; password: st
     
     // Logout first by clearing auth state
     await page.context().clearCookies();
-    await page.evaluate(() => {
-        localStorage.clear();
-        sessionStorage.clear();
-    });
+    
+    // Navigate to login first before clearing storage to avoid security errors
+    await page.goto('/login');
+    await page.waitForLoadState('networkidle');
+    
+    // Try to clear storage, but handle security errors gracefully
+    try {
+        await page.evaluate(() => {
+            localStorage.clear();
+            sessionStorage.clear();
+        });
+    } catch (e) {
+        // Ignore security errors when trying to clear storage
+        console.log('Storage clear failed (expected on some origins)');
+    }
     
     // Login as new user
     await login(page, user);

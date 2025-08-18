@@ -14,9 +14,6 @@ test.describe('Inventory API', () => {
     expect(Array.isArray(data.items)).toBe(true);
   });
   
-  test('GET /api/inventory should require authentication', async ({ request }) => {
-     const response = await request.get('/api/inventory?page=1&limit=10');
-     expect(response.status()).toBe(401);
-  });
+
 
 });

@@ -84,8 +84,15 @@ export async function middleware(req: NextRequest) {
   response.headers.set('X-XSS-Protection', '1; mode=block');
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   
-  // A basic Content-Security-Policy. This should be configured more specifically for your app's needs.
-  response.headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https://placehold.co;");
+  // A more permissive Content-Security-Policy for development/testing
+  // In production, this should be more restrictive and tailored to your specific needs
+  const isProduction = process.env.NODE_ENV === 'production';
+  if (isProduction) {
+    response.headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:;");
+  } else {
+    // More permissive for development and testing
+    response.headers.set('Content-Security-Policy', "default-src 'self' 'unsafe-inline' 'unsafe-eval'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:; connect-src 'self' https: wss:;");
+  }
 
 
   return response;

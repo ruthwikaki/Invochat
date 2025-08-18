@@ -16,6 +16,9 @@ const nextConfig = defineNextConfig({
   // Production optimizations
   compress: true,
   poweredByHeader: false,
+  env: {
+    GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
+  },
   webpack: (config, { isServer, webpack }) => {
     config.resolve.symlinks = false;
 

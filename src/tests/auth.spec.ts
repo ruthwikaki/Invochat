@@ -5,9 +5,14 @@ import { test, expect } from '@playwright/test';
 test.describe('Authentication and Authorization', () => {
 
   test('should show validation error for bad login', async ({ page }) => {
-    await page.goto('/login');
-    await page.fill('#email', 'wrong@user.com');
-    await page.fill('#password', 'wrongpassword');
+    await page.goto('/login', { waitUntil: 'networkidle', timeout: 60000 });
+    
+    // Wait for form elements to be ready
+    await expect(page.locator('input[name="email"]')).toBeVisible();
+    await expect(page.locator('input[name="password"]')).toBeVisible();
+    
+    await page.fill('input[name="email"]', 'wrong@user.com');
+    await page.fill('input[name="password"]', 'wrongpassword');
     await page.click('button[type="submit"]');
 
     const errorMessage = page.locator('[role="alert"]:has-text("Invalid login credentials")');
@@ -15,9 +20,14 @@ test.describe('Authentication and Authorization', () => {
   });
 
   test('should show validation errors for signup', async ({ page }) => {
-    await page.goto('/signup');
-    await page.fill('#password', 'short');
-    await page.fill('#confirmPassword', 'different');
+    await page.goto('/signup', { waitUntil: 'networkidle', timeout: 60000 });
+    
+    // Wait for form elements to be ready
+    await expect(page.locator('input[name="password"]')).toBeVisible();
+    await expect(page.locator('input[name="confirmPassword"]')).toBeVisible();
+    
+    await page.fill('input[name="password"]', 'short');
+    await page.fill('input[name="confirmPassword"]', 'different');
     await page.click('button[type="submit"]');
     
     // This tests browser validation, but we can also check for server errors

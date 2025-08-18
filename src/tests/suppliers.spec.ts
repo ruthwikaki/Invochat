@@ -6,7 +6,7 @@ test.describe('Supplier Management', () => {
   const newSupplierEmail = `test-${Date.now()}@example.com`;
 
   test.beforeEach(async ({ page }) => {
-    // Tests will use shared authentication state
+    // Navigate directly to suppliers page - authentication should already be handled by chromium project
     await page.goto('/suppliers');
     await page.waitForURL('/suppliers');
   });
@@ -16,10 +16,16 @@ test.describe('Supplier Management', () => {
     await page.getByRole('link', { name: 'Add Supplier' }).click();
     await page.waitForURL('/suppliers/new');
     await expect(page.getByText('Add New Supplier')).toBeVisible();
+    
+    // Give extra time for the form and CSRF token to initialize
+    await page.waitForTimeout(3000);
 
     await page.fill('input[name="name"]', newSupplierName);
     await page.fill('input[name="email"]', newSupplierEmail);
     await page.fill('input[name="default_lead_time_days"]', '14');
+    
+    // Wait for the CSRF token to load and submit button to be enabled (longer timeout)
+    await page.waitForSelector('button[type="submit"]:not([disabled])', { timeout: 30000 });
     
     // Submit and wait for either success redirect or stay on form with error
     await page.click('button[type="submit"]');
@@ -29,13 +35,20 @@ test.describe('Supplier Management', () => {
     
     // Check if we're back on suppliers page (success) or still on form (error)
     const currentUrl = page.url();
+    console.log('Current URL after form submission:', currentUrl);
+    
     if (currentUrl.includes('/suppliers/new')) {
       // Still on form, check for errors
+      console.log('Still on form page, checking for errors...');
       const errorElement = page.locator('.text-destructive, .text-red-500, [role="alert"]').first();
       if (await errorElement.isVisible()) {
         const errorText = await errorElement.textContent();
+        console.log('Error found:', errorText);
         throw new Error(`Form submission failed: ${errorText}`);
       } else {
+        console.log('No error element visible, dumping page content...');
+        const bodyText = await page.textContent('body');
+        console.log('Page content (first 1000 chars):', bodyText?.substring(0, 1000));
         throw new Error('Form submission did not redirect and no error shown');
       }
     }
@@ -56,6 +69,10 @@ test.describe('Supplier Management', () => {
     
     const updatedName = `Updated Corp ${Date.now()}`;
     await page.fill('input[name="name"]', updatedName);
+    
+    // Wait for the CSRF token to load and submit button to be enabled (longer timeout)
+    await page.waitForSelector('button[type="submit"]:not([disabled])', { timeout: 30000 });
+    
     await page.click('button[type="submit"]');
 
     // 4. Verify the update

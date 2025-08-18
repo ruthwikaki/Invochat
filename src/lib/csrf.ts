@@ -19,7 +19,7 @@ export async function generateCSRFToken(): Promise<string> {
   cookies().set({
     name: CSRF_COOKIE_NAME,
     value: token,
-    httpOnly: true,
+    httpOnly: false, // Allow JavaScript to read this cookie
     secure: process.env.NODE_ENV === 'production',
     path: '/',
     sameSite: 'strict',

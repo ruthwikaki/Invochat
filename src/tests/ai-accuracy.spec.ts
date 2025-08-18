@@ -1,35 +1,24 @@
 
 import { test, expect } from '@playwright/test';
-import type { Page } from '@playwright/test';
-import credentials from './test_data/test_credentials.json';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { DashboardMetrics } from '@/types';
 
-const testUser = credentials.test_users[0]; // Use a specific user with known data
-
-// Helper to log in to the application
-async function login(page: Page) {
-    await page.goto('/login');
-    await page.fill('input[name="email"]', testUser.email);
-    await page.fill('input[name="password"]', testUser.password);
-    await page.click('button[type="submit"]');
-    await page.waitForURL('/dashboard', { timeout: 30000 });
-    await page.waitForLoadState('networkidle');
-}
+// Use shared authentication setup instead of custom login
+test.use({ storageState: 'playwright/.auth/user.json' });
 
 // Helper to get ground truth directly from the database
 async function getGroundTruth(): Promise<{ topProduct: string | null }> {
     const supabase = getServiceRoleClient();
     
-    // Find the company ID for our test user
+    // Use the company ID from shared auth setup (TechGear Electronics)
     const { data: company } = await supabase
         .from('companies')
         .select('id')
-        .eq('name', testUser.company_name)
+        .eq('name', 'TechGear Electronics')
         .single();
 
     if (!company) {
-        throw new Error(`Test company "${testUser.company_name}" not found.`);
+        throw new Error(`Test company "TechGear Electronics" not found.`);
     }
 
     // Call the same RPC function the dashboard uses to get top products
@@ -55,10 +44,6 @@ test.describe('AI Response Accuracy vs. Database Ground Truth', () => {
   test.beforeAll(async () => {
     // Fetch the ground truth from the database once before the tests run
     groundTruth = await getGroundTruth();
-  });
-
-  test.beforeEach(async ({ page }) => {
-    await login(page);
   });
 
   test('AI should correctly identify the top-selling product', async ({ page }) => {

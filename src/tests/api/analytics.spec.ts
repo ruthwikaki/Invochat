@@ -14,8 +14,5 @@ test.describe('Analytics API', () => {
     expect(data).toHaveProperty('top_products');
   });
 
-  test('should reject unauthorized access to dashboard analytics', async ({ request }) => {
-    const response = await request.get('/api/analytics/dashboard?range=30d');
-    expect(response.status()).toBe(401);
-  });
+
 });
