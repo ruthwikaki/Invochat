@@ -60,21 +60,22 @@ export function SuppliersClientPage({ initialSuppliers }: { initialSuppliers: Su
   const { toast } = useToast();
   const [supplierToDelete, setSupplierToDelete] = useState<Supplier | null>(null);
   const [isPending, startTransition] = useTransition();
-  const [csrfToken] = useState<string | null>('dummy-token'); // Temporarily disabled for testing
+  const [csrfToken, setCsrfToken] = useState<string | null>('dummy-token'); // Temporarily disabled for testing
 
   useEffect(() => {
     // generateAndSetCsrfToken(setCsrfToken);  // Temporarily disabled for testing
+    setCsrfToken('dummy-token'); // Ensure we always have a token for testing
   }, []);
 
   const handleDelete = async () => {
-    if (!supplierToDelete) {
+    if (!supplierToDelete || !csrfToken) {
         toast({ variant: 'destructive', title: "Error", description: 'Could not perform action. Please refresh.' });
         return;
     };
     startTransition(async () => {
         const formData = new FormData();
         formData.append('id', supplierToDelete.id);
-        formData.append(CSRF_FORM_NAME, csrfToken!); // Using dummy token for testing
+        formData.append(CSRF_FORM_NAME, csrfToken);
 
         const result = await deleteSupplier(formData);
 
@@ -151,7 +152,7 @@ export function SuppliersClientPage({ initialSuppliers }: { initialSuppliers: Su
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} disabled={isPending} className="bg-destructive hover:bg-destructive/90">
+            <AlertDialogAction onClick={handleDelete} disabled={isPending || !csrfToken} className="bg-destructive hover:bg-destructive/90">
               {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Yes, delete
             </AlertDialogAction>

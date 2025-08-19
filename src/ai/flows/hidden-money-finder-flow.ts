@@ -65,6 +65,33 @@ export const findHiddenMoneyFlow = ai.defineFlow(
     outputSchema: HiddenMoneyOutputSchema,
   },
   async ({ companyId }) => {
+    // Mock response for testing to avoid API quota issues
+    console.log('[Debug] MOCK_AI env var:', process.env.MOCK_AI);
+    if (process.env.MOCK_AI === 'true') {
+      console.log('[Debug] Using mock response for hidden money finder');
+      return {
+        opportunities: [
+          {
+            type: 'High-Margin Slow-Mover' as const,
+            sku: 'MOCK-SKU-001',
+            productName: 'Premium Widget Mock',
+            reasoning: 'This product has excellent margins but low visibility in your current marketing mix.',
+            suggestedAction: 'Create targeted social media campaign featuring this high-value product.',
+            potentialValue: 15000, // $150.00 in cents
+          },
+          {
+            type: 'Price Increase Candidate' as const,
+            sku: 'MOCK-SKU-002', 
+            productName: 'Standard Component Mock',
+            reasoning: 'Market analysis suggests customers would accept a modest price increase for this essential item.',
+            suggestedAction: 'Test a 10% price increase with A/B testing on a subset of customers.',
+            potentialValue: 8500, // $85.00 in cents
+          }
+        ],
+        analysis: "I've identified several products with untapped profit potential. Focus on promoting high-margin slow-movers and testing strategic price increases on essential items."
+      };
+    }
+
     try {
       // Step 1: Get the required data using the underlying database functions directly
       const [salesVelocityResult, marginResult] = await Promise.all([

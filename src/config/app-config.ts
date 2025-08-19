@@ -64,7 +64,7 @@ export const config = {
   },
   ratelimit: {
     auth: process.env.TESTING === 'true' ? 1000 : parseIntWithDefault(process.env.RATELIMIT_AUTH, 100),
-    ai: parseIntWithDefault(process.env.RATELIMIT_AI, 100),
+    ai: process.env.MOCK_AI === 'true' ? 10000 : parseIntWithDefault(process.env.RATELIMIT_AI, 100), // High limit for testing
     import: parseIntWithDefault(process.env.RATELIMIT_IMPORT, 50),
     sync: parseIntWithDefault(process.env.RATELIMIT_SYNC, 50),
     connect: parseIntWithDefault(process.env.RATELIMIT_CONNECT, 20),

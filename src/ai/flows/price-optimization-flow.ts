@@ -76,6 +76,29 @@ export const priceOptimizationFlow = ai.defineFlow(
     outputSchema: PriceOptimizationOutputSchema,
   },
   async ({ companyId }) => {
+    // Check if we should use mock data for testing
+    if (process.env.MOCK_AI === 'true') {
+      return {
+        suggestions: [
+          {
+            sku: "PROD-001",
+            currentPrice: 2999,
+            suggestedPrice: 3299,
+            reasoning: "Fast-moving product with good margin. 10% increase recommended to maximize profit.",
+            estimatedImpact: "Increased profit per unit while maintaining sales volume"
+          },
+          {
+            sku: "PROD-002", 
+            currentPrice: 1599,
+            suggestedPrice: 1399,
+            reasoning: "Slow-moving inventory. 12.5% decrease to stimulate demand and improve cash flow.",
+            estimatedImpact: "Higher sales volume, reduced carrying costs"
+          }
+        ],
+        analysis: "Mock analysis: Balanced approach focusing on margin expansion for fast movers and volume stimulation for slow movers."
+      };
+    }
+
     try {
       // Limit to 50 most valuable products to avoid excessive token usage and costs.
       const { items: allProducts } = await getUnifiedInventoryFromDB(companyId, { limit: 50 });

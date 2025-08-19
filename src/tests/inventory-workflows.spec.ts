@@ -1,18 +1,6 @@
 
 import { test, expect } from '@playwright/test';
-import type { Page } from '@playwright/test';
-import credentials from './test_data/test_credentials.json';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-
-const testUser = credentials.test_users[0];
-
-async function login(page: Page) {
-    await page.goto('/login');
-    await page.fill('input[name="email"]', testUser.email);
-    await page.fill('input[name="password"]', 'TestPass123!');
-    await page.click('button[type="submit"]');
-    await page.waitForURL('/dashboard', { timeout: 30000 });
-}
 
 // Helper to get a variant's stock from the database directly
 async function getStockForSku(sku: string): Promise<number | null> {
@@ -22,10 +10,7 @@ async function getStockForSku(sku: string): Promise<number | null> {
 }
 
 test.describe('Complex Inventory Workflows', () => {
-    
-    test.beforeEach(async ({ page }) => {
-        await login(page);
-    });
+    // Using shared authentication state - no login needed
 
     test('should correctly update stock after receiving a purchase order', async ({ page }) => {
         await page.goto('/inventory');
@@ -33,7 +18,15 @@ test.describe('Complex Inventory Workflows', () => {
         const firstRow = page.locator('table > tbody > tr').first();
         await expect(firstRow).toBeVisible({ timeout: 10000 });
         
-        await firstRow.locator('button[aria-label="Expand row"]').click();
+        // Look for expand button with more flexible selectors
+        const expandButton = firstRow.locator('button').filter({ hasText: /expand|chevron|down|arrow/i }).or(
+            firstRow.locator('button[aria-label*="expand"]')
+        ).or(
+            firstRow.locator('button svg')
+        ).first();
+        
+        await expect(expandButton).toBeVisible({ timeout: 5000 });
+        await expandButton.click();
         const variantRow = page.locator('table table tbody tr').first();
         const sku = await variantRow.locator('td').nth(1).innerText();
         const initialStock = parseInt(await variantRow.locator('td').nth(4).innerText(), 10);
@@ -68,7 +61,15 @@ test.describe('Complex Inventory Workflows', () => {
         const firstRow = page.locator('table > tbody > tr').first();
         await expect(firstRow).toBeVisible({ timeout: 10000 });
 
-        await firstRow.locator('button[aria-label="Expand row"]').click();
+        // Look for expand button with more flexible selectors
+        const expandButton = firstRow.locator('button').filter({ hasText: /expand|chevron|down|arrow/i }).or(
+            firstRow.locator('button[aria-label*="expand"]')
+        ).or(
+            firstRow.locator('button svg')
+        ).first();
+        
+        await expect(expandButton).toBeVisible({ timeout: 5000 });
+        await expandButton.click();
         const variantRow = page.locator('table table tbody tr').first();
         const sku = await variantRow.locator('td').nth(1).innerText();
         const initialStock = parseInt(await variantRow.locator('td').nth(4).innerText(), 10);

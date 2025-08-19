@@ -66,6 +66,33 @@ export const suggestBundlesFlow = ai.defineFlow(
     outputSchema: SuggestBundlesOutputSchema,
   },
   async ({ companyId, count }) => {
+    // Mock response for testing to avoid API quota issues
+    if (process.env.MOCK_AI === 'true') {
+      return {
+        suggestions: [
+          {
+            bundleName: 'Starter Pack Pro',
+            productSkus: ['MOCK-WIDGET-001', 'MOCK-ACCESSORY-002'],
+            reasoning: 'These products are frequently purchased together and offer complementary functionality for new customers.',
+            potentialBenefit: 'Increase average order value by 25% while helping customers get started with a complete solution.'
+          },
+          {
+            bundleName: 'Premium Essentials Bundle',
+            productSkus: ['MOCK-PREMIUM-001', 'MOCK-ESSENTIAL-003'],
+            reasoning: 'High-margin products that work well together, appealing to customers seeking quality solutions.',
+            potentialBenefit: 'Boost profit margins while providing exceptional value to quality-conscious customers.'
+          },
+          {
+            bundleName: 'Complete Solution Kit',
+            productSkus: ['MOCK-BASE-001', 'MOCK-ADDON-002', 'MOCK-SUPPORT-003'],
+            reasoning: 'End-to-end solution that addresses customer needs from setup to maintenance.',
+            potentialBenefit: 'Reduce customer support needs while maximizing cross-sell opportunities.'
+          }
+        ].slice(0, count),
+        analysis: "Bundle opportunities focus on complementary products and customer journey stages. Implementing these bundles could increase average order value while providing better customer experience."
+      };
+    }
+
     try {
       // Fetch a representative sample of products to analyze. We don't need all of them.
       const { items: products } = await getUnifiedInventoryFromDB(companyId, { limit: 200 });

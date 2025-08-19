@@ -53,8 +53,11 @@ describe('Server Actions: getDashboardData', () => {
     expect(database.getDashboardMetrics).toHaveBeenCalledWith('test-company-id', '90d');
     
     // Assert: Verify the result matches the mocked data
-    expect(result.total_revenue).toBe(12500000);
-    expect(result.top_products[0].product_name).toBe('Super Widget');
+    expect(result).not.toBeNull();
+    if (result) {
+      expect(result.total_revenue).toBe(12500000);
+      expect(result.top_products[0].product_name).toBe('Super Widget');
+    }
   });
 
   it('should return empty metrics if the database call fails', async () => {
@@ -65,7 +68,10 @@ describe('Server Actions: getDashboardData', () => {
     const result = await getDashboardData('90d');
 
     // Assert: Expect the server action to return a default empty object
-    expect(result.total_revenue).toBe(0);
-    expect(result.top_products).toEqual([]);
+    expect(result).not.toBeNull();
+    if (result) {
+      expect(result.total_revenue).toBe(0);
+      expect(result.top_products).toEqual([]);
+    }
   });
 });

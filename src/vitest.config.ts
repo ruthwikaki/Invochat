@@ -6,6 +6,7 @@ import tsconfigPaths from 'vite-tsconfig-paths';
 import path from 'path';
 
 export default defineConfig({
+  // @ts-ignore - plugin type compatibility issue between vite and vitest
   plugins: [react(), tsconfigPaths()],
   test: {
     environment: 'jsdom',

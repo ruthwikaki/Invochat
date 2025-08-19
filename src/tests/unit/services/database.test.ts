@@ -1,5 +1,5 @@
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { getDashboardMetrics } from '@/services/database';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { DashboardMetricsSchema } from '@/types';
@@ -35,14 +35,14 @@ describe('Database Service - Business Logic', () => {
     supabaseMock = {
         rpc: vi.fn(),
     };
-    (getServiceRoleClient as vi.Mock).mockReturnValue(supabaseMock);
+    (getServiceRoleClient as Mock).mockReturnValue(supabaseMock);
     vi.clearAllMocks();
   });
 
   describe('getDashboardMetrics', () => {
     it('should call the correct RPC function and return data', async () => {
       // ✅ Correct: Mock the rpc call to return the expected structure
-      (supabaseMock.rpc as vi.Mock).mockResolvedValue({ 
+      (supabaseMock.rpc as Mock).mockResolvedValue({ 
         data: mockDashboardData, 
         error: null 
       });
@@ -62,7 +62,7 @@ describe('Database Service - Business Logic', () => {
 
     it('should throw an error if the RPC call fails', async () => {
       const dbError = new Error('Database connection error');
-      (supabaseMock.rpc as vi.Mock).mockResolvedValue({ 
+      (supabaseMock.rpc as Mock).mockResolvedValue({ 
         data: null, 
         error: dbError 
       });
@@ -71,7 +71,7 @@ describe('Database Service - Business Logic', () => {
     });
 
     it('should return a default object if RPC returns null data without an error', async () => {
-        (supabaseMock.rpc as vi.Mock).mockResolvedValue({ 
+        (supabaseMock.rpc as Mock).mockResolvedValue({ 
             data: null, 
             error: null 
         });

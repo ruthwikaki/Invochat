@@ -50,8 +50,13 @@ test.describe('Sales Page', () => {
     await page.keyboard.press('Enter');
     await page.waitForTimeout(1000);
 
+    // Check for either no rows or "No sales orders found" message
     const tableRows = await page.locator('table tbody tr').count();
-    expect(tableRows).toBe(0);
+    const noDataMessage = page.getByText('No sales orders found');
+    
+    // Accept either no rows or a "no data" message row
+    const hasNoData = tableRows === 0 || await noDataMessage.isVisible();
+    expect(hasNoData).toBe(true);
   });
 });
 

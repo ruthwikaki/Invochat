@@ -3,8 +3,6 @@ import credentials from './test_data/test_credentials.json';
 import { formatCentsAsCurrency } from '@/lib/utils';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 
-const testUser = credentials.test_users[0];
-
 // Helper to get a specific stat from the database to verify against the UI
 async function getDbStat(companyId: string, statName: 'total_revenue' | 'total_orders' | 'new_customers') {
     const supabase = getServiceRoleClient();
@@ -12,21 +10,20 @@ async function getDbStat(companyId: string, statName: 'total_revenue' | 'total_o
         p_company_id: companyId,
         p_days: 90
     });
-    return data ? data[statName] : 0;
+    return data && typeof data === 'object' && statName in data ? (data as any)[statName] : 0;
 }
 
 test.describe('Real Data End-to-End Tests', () => {
 
   test('should login and verify that generated data appears correctly on key pages', async ({ page }) => {
-    // 1. LOGIN
-    await page.goto('/login');
-    await page.fill('input[name="email"]', testUser.email);
-    await page.fill('input[name="password"]', testUser.password);
-    await page.click('button[type="submit"]');
+    // Using shared authentication state - already logged in
+    await page.goto('/dashboard');
     await page.waitForURL('/dashboard', { timeout: 30000 });
-    console.log('✅ Login successful, on dashboard.');
+    console.log('✅ Already authenticated, on dashboard.');
 
     const supabase = getServiceRoleClient();
+    // Get the company ID for the authenticated user
+    const testUser = credentials.test_users[0];
     const { data: company } = await supabase.from('companies').select('id').eq('name', testUser.company_name).single();
     expect(company).not.toBeNull();
     const companyId = company!.id;
@@ -35,7 +32,10 @@ test.describe('Real Data End-to-End Tests', () => {
     const expectedRevenue = await getDbStat(companyId, 'total_revenue');
     const expectedRevenueString = formatCentsAsCurrency(expectedRevenue);
     
-    await expect(page.getByTestId('total-revenue-card')).toContainText(expectedRevenueString, { timeout: 15000 });
+    // Verify that the dashboard shows the actual revenue from database
+    const revenueCard = page.getByTestId('total-revenue-card');
+    await expect(revenueCard).toBeVisible({ timeout: 15000 });
+    await expect(revenueCard).toContainText(expectedRevenueString, { timeout: 15000 });
     console.log(`✅ Dashboard revenue verified: ${expectedRevenueString}`);
 
     // 3. VERIFY INVENTORY PAGE

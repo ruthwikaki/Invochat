@@ -1,22 +1,11 @@
 
 
-import { test, expect } from '@playwright/test';
-import type { Page } from '@playwright/test';
-import credentials from './test_data/test_credentials.json';
+import { test, expect, type Page } from '@playwright/test';
 
 // Use shared authentication setup
 test.use({ storageState: 'playwright/.auth/user.json' });
 
-const testUser = credentials.test_users[0]; // Use the first user for tests
 
-async function login(page: Page) {
-    await page.goto('/login');
-    await page.fill('input[name="email"]', testUser.email);
-    await page.fill('input[name="password"]', 'TestPass123!');
-    await page.click('button[type="submit"]');
-    await page.waitForURL('/dashboard', { timeout: 30000 });
-    await page.waitForLoadState('networkidle');
-}
 
 // Helper function to verify supplier exists in database via UI
 async function verifySupplierExists(page: Page, supplierName: string): Promise<boolean> {
@@ -76,22 +65,17 @@ async function createSupplierWithVerification(page: Page, supplierName: string, 
 async function waitForSupplierInDropdown(page: Page, supplierName: string, maxRetries: number = 3): Promise<boolean> {
     for (let retry = 0; retry < maxRetries; retry++) {
         try {
-            // Open the dropdown
-            const supplierDropdown = page.getByRole('combobox').first();
-            await supplierDropdown.click();
-            await page.waitForTimeout(1000);
+            // Find the supplier select element
+            const supplierSelect = page.locator('select[name="supplier_id"]');
+            await supplierSelect.waitFor({ state: 'visible' });
             
-            // Look for the supplier option
-            const supplierOption = page.locator(`[role="option"]:has-text("${supplierName}")`).first();
-            const isVisible = await supplierOption.isVisible({ timeout: 5000 });
+            // Check if the supplier option exists
+            const supplierOption = supplierSelect.locator(`option:has-text("${supplierName}")`);
+            const optionCount = await supplierOption.count();
             
-            if (isVisible) {
+            if (optionCount > 0) {
                 return true;
             }
-            
-            // Close dropdown and retry
-            await page.keyboard.press('Escape');
-            await page.waitForTimeout(2000);
             
             // Refresh the page to reload supplier data
             if (retry < maxRetries - 1) {
@@ -118,6 +102,14 @@ test.describe('E2E Business Workflow: Create & Manage Purchase Order', () => {
   });
 
   test('should create a supplier, then create a PO for that supplier', async ({ page }) => {
+    // Capture console logs for debugging
+    const consoleLogs: string[] = [];
+    page.on('console', msg => {
+      if (msg.type() === 'log' || msg.type() === 'error') {
+        consoleLogs.push(`${msg.type()}: ${msg.text()}`);
+      }
+    });
+    
     // Step 1: Create supplier with database verification
     console.log(`Creating supplier: ${newSupplierName}`);
     const supplierCreated = await createSupplierWithVerification(page, newSupplierName, supplierEmail);
@@ -144,92 +136,103 @@ test.describe('E2E Business Workflow: Create & Manage Purchase Order', () => {
     
     if (!supplierFoundInDropdown) {
       // Final fallback: Try using any existing supplier
-      const supplierDropdown = page.getByRole('combobox').first();
-      await supplierDropdown.click();
-      await page.waitForTimeout(1000);
+      const supplierSelect = page.locator('select[name="supplier_id"]');
+      await supplierSelect.waitFor({ state: 'visible' });
       
-      const anySupplierOption = page.locator('[role="option"]').first();
-      const hasAnySupplier = await anySupplierOption.isVisible({ timeout: 5000 });
+      const allOptions = supplierSelect.locator('option:not([value=""])');
+      const hasAnySupplier = await allOptions.count() > 0;
       
       if (hasAnySupplier) {
         console.log('Using first available supplier as fallback');
-        const fallbackSupplierText = await anySupplierOption.textContent();
-        await anySupplierOption.click();
+        const firstOption = allOptions.first();
+        const fallbackSupplierText = await firstOption.textContent();
+        const fallbackSupplierValue = await firstOption.getAttribute('value');
+        await supplierSelect.selectOption({ value: fallbackSupplierValue! });
         console.log(`Selected fallback supplier: ${fallbackSupplierText}`);
       } else {
         throw new Error('No suppliers available in dropdown for purchase order creation');
       }
     } else {
       // Select the created supplier
-      const supplierOption = page.locator(`[role="option"]:has-text("${newSupplierName}")`).first();
-      await supplierOption.click();
+      const supplierSelect = page.locator('select[name="supplier_id"]');
+      await supplierSelect.selectOption({ label: newSupplierName });
       console.log(`Successfully selected supplier: ${newSupplierName}`);
     }
 
     // Step 4: Add product line item
     await page.getByRole('button', { name: 'Add Item' }).click();
     
-    // Wait for product selector and select first product
-    const productSelector = page.getByRole('button', { name: 'Select a product' });
-    await expect(productSelector).toBeVisible({ timeout: 10000 });
-    await productSelector.click();
+    // Wait for product select dropdown and select first product
+    const mainProductSelect = page.locator('select[name^="line_items."][name$=".variant_id"]').first();
+    await expect(mainProductSelect).toBeVisible({ timeout: 10000 });
     
-    // Wait for product options with specific selectors to avoid strict mode violations
-    let firstProduct = page.locator('.cmdk-item').first();
-    let hasProduct = await firstProduct.isVisible({ timeout: 5000 });
+    // Get the first available product option
+    const mainProductOptions = mainProductSelect.locator('option:not([value=""])');
+    const mainFirstProductValue = await mainProductOptions.first().getAttribute('value');
     
-    if (!hasProduct) {
-      // Try more specific selectors that won't conflict with sidebar or other elements
-      firstProduct = page.locator('[cmdk-item][role="option"]').first();
-      hasProduct = await firstProduct.isVisible({ timeout: 3000 });
+    if (mainFirstProductValue) {
+      await mainProductSelect.selectOption(mainFirstProductValue);
+      console.log(`Selected product with ID: ${mainFirstProductValue}`);
+    } else {
+      throw new Error('No products available to select');
     }
     
-    if (!hasProduct) {
-      // Try product-specific selectors within the command dialog
-      firstProduct = page.locator('[data-value*="SKU"]').first();
-      hasProduct = await firstProduct.isVisible({ timeout: 3000 });
+    // Set quantity
+    const quantityInput = page.locator('input[name="line_items.0.quantity"]');
+    await expect(quantityInput).toBeVisible();
+    await quantityInput.fill('10');
+
+    // Fill any other required fields that might exist
+    // Check for expected delivery date
+    const deliveryDateInput = page.locator('input[name="expected_delivery_date"]');
+    if (await deliveryDateInput.isVisible()) {
+      // Set delivery date to next month
+      const nextMonth = new Date();
+      nextMonth.setMonth(nextMonth.getMonth() + 1);
+      const dateString = nextMonth.toISOString().split('T')[0];
+      await deliveryDateInput.fill(dateString);
     }
-    
-    if (hasProduct) {
-      // Use force click to bypass any intercepting elements
-      await firstProduct.click({ force: true });
-      console.log('Selected first available product');
-      
-      // Set quantity
-      const quantityInput = page.locator('input[name="line_items.0.quantity"]');
-      await expect(quantityInput).toBeVisible();
-      await quantityInput.fill('10');
 
-      // Fill any other required fields that might exist
-      // Check for expected delivery date
-      const deliveryDateInput = page.locator('input[name="expected_delivery_date"]');
-      if (await deliveryDateInput.isVisible()) {
-        // Set delivery date to next month
-        const nextMonth = new Date();
-        nextMonth.setMonth(nextMonth.getMonth() + 1);
-        const dateString = nextMonth.toISOString().split('T')[0];
-        await deliveryDateInput.fill(dateString);
-      }
-
-      // Check for notes field (sometimes required)
-      const notesInput = page.locator('textarea[name="notes"]');
-      if (await notesInput.isVisible()) {
-        await notesInput.fill('Test purchase order created by automation');
-      }
+    // Check for notes field (sometimes required)
+    const notesInput = page.locator('textarea[name="notes"]');
+    if (await notesInput.isVisible()) {
+      await notesInput.fill('Test purchase order created by automation');
+    }
 
       // Debug: Check the current form state and available buttons
       console.log("Current page URL:", page.url());
       
-      // Check if products exist on the form by looking for any existing dropdowns
-      const allComboboxes = await page.locator('[role="combobox"]').all();
-      console.log("Total comboboxes found:", allComboboxes.length);
+      // Check if products exist on the form by looking for product select dropdowns
+      const productSelects = await page.locator('select[name^="line_items."][name$=".variant_id"]').all();
+      console.log("Total product selects found:", productSelects.length);
       
       // Let's try a different approach - see if the form has any initial line items
       const existingLineItems = await page.locator('[name^="line_items."]').all();
       console.log("Existing line item fields:", existingLineItems.length);
       
+      // Select a product for the initial line item first
+      console.log("Selecting product for the initial line item...");
+      
+      // Find the product select dropdown for the first line item
+      const initialProductSelect = page.locator('select[name^="line_items."][name$=".variant_id"]').first();
+      await initialProductSelect.waitFor({ state: 'visible', timeout: 5000 });
+      
+      // Get the first available product option
+      const initialProductOptions = initialProductSelect.locator('option:not([value=""])');
+      const initialFirstProductValue = await initialProductOptions.first().getAttribute('value');
+      
+      if (initialFirstProductValue) {
+        await initialProductSelect.selectOption(initialFirstProductValue);
+        console.log(`Selected product with ID: ${initialFirstProductValue}`);
+      } else {
+        throw new Error('No products available to select');
+      }
+      
+      // Wait for the form to update after product selection
+      await page.waitForTimeout(1000);
+
       // Add a line item to the purchase order
-      console.log("Adding line item to purchase order...");
+      console.log("Adding second line item to purchase order...");
       
       // Find and click the "Add Item" button
       const addItemButton = page.locator('button').filter({ hasText: 'Add Item' });
@@ -239,30 +242,80 @@ test.describe('E2E Business Workflow: Create & Manage Purchase Order', () => {
       // Wait for the line item to be added
       await page.waitForTimeout(2000);
       
-      // Now select a product for the line item
-      console.log("Selecting product for the line item...");
+      // Now select a product for the second line item
+      console.log("Selecting product for the second line item...");
       
-      // Find the "Select a product" button that appears after adding a line item
-      const selectProductButton = page.locator('button').filter({ hasText: 'Select a product' }).first();
-      await selectProductButton.waitFor({ state: 'visible', timeout: 5000 });
-      await selectProductButton.click();
+      // Find the product select dropdown for the second line item (last one)
+      const secondProductSelect = page.locator('select[name^="line_items."][name$=".variant_id"]').last();
+      await secondProductSelect.waitFor({ state: 'visible', timeout: 5000 });
       
-      // Wait for the product dropdown to open
-      await page.waitForTimeout(1000);
+      // Get the first available product option for the second line item
+      const secondProductOptions = secondProductSelect.locator('option:not([value=""])');
+      const secondProductValue = await secondProductOptions.first().getAttribute('value');
       
-      // Select the first available product from the Command dropdown
-      const firstProductOption = page.locator('[role="option"]').first();
-      await firstProductOption.waitFor({ state: 'visible', timeout: 5000 });
-      await firstProductOption.click({ force: true }); // Use force to bypass intercepting elements
+      if (secondProductValue) {
+        await secondProductSelect.selectOption(secondProductValue);
+        console.log(`Selected product with ID: ${secondProductValue} for second line item`);
+      } else {
+        throw new Error('No products available to select for second line item');
+      }
       
-      console.log("Product selected for line item");
+      console.log("Product selected for second line item");
       
       // Wait for the form to update after product selection
       await page.waitForTimeout(2000);
 
+      // Set proper cost values for the line items to ensure form validation passes
+      const costInputs = await page.locator('input[name*="cost"]').all();
+      for (let i = 0; i < costInputs.length; i++) {
+        await costInputs[i].fill('10.00'); // Set a reasonable cost
+        console.log(`Set cost for line item ${i} to $10.00`);
+      }
+
+      // Verify the supplier is properly selected by checking the supplier select field
+      const supplierSelect = page.locator('select[name="supplier_id"]');
+      const supplierValue = await supplierSelect.inputValue();
+      console.log("Current supplier selection:", supplierValue);
+      
+      // Verify supplier selection was successful at React Hook Form level
+      const supplierFieldValue = await page.evaluate(() => {
+          // Check the native select element
+          const selectElement = document.querySelector('select[name="supplier_id"]') as HTMLSelectElement;
+          const selectedOption = selectElement ? selectElement.options[selectElement.selectedIndex] : null;
+          
+          return {
+              selectValue: selectElement ? selectElement.value : null,
+              selectedText: selectedOption ? selectedOption.text : null,
+              hasValue: selectElement ? selectElement.value !== '' : false
+          };
+      });
+      console.log('Supplier field validation:', supplierFieldValue);
+      
+      // Give extra time for React Hook Form to update
+      await page.waitForTimeout(1000);
+      
+      // Check for any form validation errors
+      const validationErrors = await page.locator('[data-testid="error"], .text-destructive, .text-red-600, [role="alert"]').all();
+      for (let i = 0; i < validationErrors.length; i++) {
+        const errorText = await validationErrors[i].textContent();
+        if (errorText?.trim()) {
+          console.log(`Validation error ${i}:`, errorText);
+        }
+      }
+
       // Wait for form validation and CSRF token to be generated
       await page.waitForTimeout(3000);
       console.log("Waited for form validation and CSRF token");
+
+      // Wait specifically for CSRF token to be available or fallback (up to 12 seconds total)
+      try {
+        await page.waitForFunction(() => {
+          return document.cookie.includes('csrf_token');
+        }, { timeout: 12000 });
+        console.log("CSRF token is now available in cookies");
+      } catch (e) {
+        console.log("CSRF token not available in cookies, relying on fallback");
+      }
       
       // Check the current form state before attempting submission
       const formState = await page.evaluate(() => {
@@ -278,6 +331,41 @@ test.describe('E2E Business Workflow: Create & Manage Purchase Order', () => {
         return {};
       });
       console.log("Current form state:", formState);
+
+      // Check React Hook Form state as well
+      const reactFormState = await page.evaluate(() => {
+        // Try to access React Hook Form state if available
+        const formElement = document.querySelector('form');
+        if (formElement && (formElement as any).__reactInternalInstance) {
+          try {
+            return (formElement as any).__reactInternalInstance.memoizedProps;
+          } catch (e) {
+            return null;
+          }
+        }
+        return null;
+      });
+      console.log("React form state:", reactFormState);
+
+      // Check if CSRF token is available
+      const csrfTokenExists = await page.evaluate(() => {
+        return document.cookie.includes('csrf_token');
+      });
+      console.log("CSRF token exists in cookies:", csrfTokenExists);
+
+      // Check if the button has any specific disabled attributes or states
+      const buttonState = await page.evaluate(() => {
+        const button = document.querySelector('button[type="submit"]');
+        if (button) {
+          return {
+            disabled: button.hasAttribute('disabled'),
+            ariaDisabled: button.getAttribute('aria-disabled'),
+            classList: button.className
+          };
+        }
+        return null;
+      });
+      console.log("Submit button state:", buttonState);
       
       // Check if there are any validation errors visible on the page
       const errorElements = await page.locator('[role="alert"], .text-destructive, .text-red-500').all();
@@ -294,49 +382,125 @@ test.describe('E2E Business Workflow: Create & Manage Purchase Order', () => {
       const createButton = page.getByRole('button', { name: 'Create Purchase Order' });
       await expect(createButton).toBeVisible();
       
-      // Check if button is enabled, if not, try to force submit anyway for now
-      const isEnabled = await createButton.isEnabled();
-      console.log("Create button enabled:", isEnabled);
-      
-      if (!isEnabled) {
-        console.log("Button is disabled - checking if we can proceed anyway...");
-        // Sometimes the button might be disabled due to React state not updating properly
-        // Let's try clicking it with force to see what happens
-        await createButton.click({ force: true });
-      } else {
-        await createButton.click();
-      }
-
-      // Check form validity one more time
-      const formData = await page.evaluate(() => {
-        const form = document.querySelector('form');
-        if (form) {
-          const formData = new FormData(form);
-          const data: Record<string, any> = {};
-          for (const [key, value] of formData.entries()) {
-            data[key] = value;
-          }
-          return data;
-        }
-        return {};
+      // Log form validation state before submission
+      const formValidationState = await page.evaluate(() => {
+          const form = document.querySelector('form');
+          if (!form) return null;
+          
+          return {
+              reportValidity: form.reportValidity(),
+              checkValidity: form.checkValidity(),
+              validationMessage: form.validationMessage,
+              noValidate: form.noValidate,
+              method: form.method || 'get',
+              action: form.action || 'none'
+          };
       });
-      console.log("Form data before submission:", formData);
+      console.log('Form validation state:', formValidationState);
       
-      // Try to submit the form
+      // Wait for button to be enabled (up to 10 seconds)
+      await expect(createButton).toBeEnabled({ timeout: 10000 });
+      console.log("Create button is now enabled");
+      
+      // Add form submission event listeners before clicking
+      await page.evaluate(() => {
+          const form = document.querySelector('form');
+          if (form) {
+              form.addEventListener('submit', (e) => {
+                  console.log('Native form submit event fired:', e.type);
+                  console.log('Event default prevented:', e.defaultPrevented);
+              });
+          }
+          
+          // Listen for React Hook Form onSubmit
+          window.addEventListener('beforeunload', () => {
+              console.log('Page unload event fired (navigation)');
+          });
+      });
+      
+      // Check React Hook Form state just before clicking
+      const preClickFormState = await page.evaluate(() => {
+          // Look for React Hook Form internal state and validation
+          const submitButton = document.querySelector('button[type="submit"]');
+          const form = document.querySelector('form');
+          
+          // Try to get React Hook Form validation state
+          const formInputs = Array.from(document.querySelectorAll('input, select, textarea'));
+          const hasValidationErrors = formInputs.some(input => {
+              return input.getAttribute('aria-invalid') === 'true' || 
+                     input.classList.contains('border-destructive') ||
+                     input.parentElement?.querySelector('[role="alert"]');
+          });
+          
+          return {
+              hasSubmitButton: !!submitButton,
+              hasForm: !!form,
+              formOnSubmit: form ? !!form.onsubmit : false,
+              formAction: form ? form.action : null,
+              hasValidationErrors,
+              totalInputs: formInputs.length,
+              requiredFields: formInputs.filter(input => input.hasAttribute('required')).length
+          };
+      });
+      console.log('Pre-click form state:', preClickFormState);
+      
+      // Click the create button
       await createButton.click();
       console.log("Clicked create button");
       
-      // Give it a moment to process
-      await page.waitForTimeout(2000);
+      // Give it a moment to process and check if any submit events fired
+      await page.waitForTimeout(3000);
+      
+      // Check the actual React Hook Form values and validation
+      const formDebugInfo = await page.evaluate(() => {
+          // Try to access React Hook Form state through the DOM
+          const form = document.querySelector('form');
+          const supplierSelect = document.querySelector('select[name="supplier_id"], button[role="combobox"]') as HTMLElement;
+          const lineItems = Array.from(document.querySelectorAll('input[name*="line_items"]')) as HTMLInputElement[];
+          
+          return {
+              supplierSelectValue: supplierSelect ? (supplierSelect as any).value || supplierSelect.textContent : null,
+              lineItemValues: lineItems.map(input => ({
+                  name: input.name,
+                  value: input.value,
+                  required: input.hasAttribute('required'),
+                  ariaInvalid: input.getAttribute('aria-invalid')
+              })),
+              formHasData: form ? true : false
+          };
+      });
+      console.log('React Hook Form debug info:', formDebugInfo);
 
-      // Step 6: Verify successful creation
-      try {
-        await page.waitForURL(/\/purchase-orders\/.*\/edit/, { timeout: 10000 });
-        await expect(page.getByText(/Edit PO #/)).toBeVisible();
+    // Step 6: Verify successful creation
+    try {
+        console.log('Waiting for navigation after form submission...');
         
-        // Verify the supplier is correctly selected in the edit form
-        const supplierCombobox = page.locator('button[role="combobox"]').first();
-        await expect(supplierCombobox).toBeVisible();
+        // Wait a moment for the form to be processed
+        await page.waitForTimeout(2000);
+        
+        // Check if there are any error messages on the page
+        const errorMessages = await page.locator('[data-testid="error"], .error, [role="alert"]').allTextContents();
+        if (errorMessages.length > 0) {
+            console.log('Error messages found:', errorMessages);
+        }
+        
+        // Check current URL
+        const currentUrl = page.url();
+        console.log('Current URL after submission:', currentUrl);
+        
+        // Check for console errors from the browser
+        console.log('Browser console logs captured during test:', consoleLogs);
+        
+        // Check for success toast or any notifications
+        const toastMessages = await page.locator('[data-testid="toast"], .toast, [role="status"]').allTextContents();
+        if (toastMessages.length > 0) {
+            console.log('Toast messages:', toastMessages);
+        }
+        
+        await page.waitForURL(/\/purchase-orders\/.*\/edit/, { timeout: 10000 });
+        await expect(page.getByText(/Edit PO #/)).toBeVisible();        // Verify the supplier is correctly selected in the edit form
+        const supplierSelect = page.locator('select[name="supplier_id"]');
+        await expect(supplierSelect).toBeVisible();
         
         console.log('Purchase order created successfully');
       } catch (error) {
@@ -352,11 +516,6 @@ test.describe('E2E Business Workflow: Create & Manage Purchase Order', () => {
         
         throw error;
       }
-    } else {
-      console.log('No products available for purchase order - this may indicate empty inventory');
-      // This is not necessarily a test failure if the test environment has no products
-      console.log('Test completed: Supplier selection verified successfully, product inventory may be empty');
-    }
   });
 
   test('should handle edge cases in supplier-PO workflow', async ({ page }) => {
@@ -368,13 +527,14 @@ test.describe('E2E Business Workflow: Create & Manage Purchase Order', () => {
     // Try to add item without selecting supplier
     await page.getByRole('button', { name: 'Add Item' }).click();
     
-    const productSelector = page.getByRole('button', { name: 'Select a product' });
-    if (await productSelector.isVisible({ timeout: 5000 })) {
-      await productSelector.click();
+    const edgeCaseProductSelect = page.locator('select[name^="line_items."][name$=".variant_id"]').first();
+    if (await edgeCaseProductSelect.isVisible({ timeout: 5000 })) {
+      // Get first available product option
+      const edgeCaseProductOptions = edgeCaseProductSelect.locator('option:not([value=""])');
+      const edgeCaseFirstProductValue = await edgeCaseProductOptions.first().getAttribute('value');
       
-      const firstProduct = page.locator('.cmdk-item').first();
-      if (await firstProduct.isVisible({ timeout: 5000 })) {
-        await firstProduct.click();
+      if (edgeCaseFirstProductValue) {
+        await edgeCaseProductSelect.selectOption(edgeCaseFirstProductValue);
         
         const quantityInput = page.locator('input[name="line_items.0.quantity"]');
         await quantityInput.fill('5');
@@ -435,17 +595,20 @@ test.describe('E2E Business Workflow: Create & Manage Purchase Order', () => {
       const supplierFound = await waitForSupplierInDropdown(page, complexSupplierName, 2);
       
       if (supplierFound) {
-        const supplierOption = page.locator(`[role="option"]:has-text("${complexSupplierName}")`).first();
-        await supplierOption.click();
+        const supplierSelect = page.locator('select[name="supplier_id"]');
+        await supplierSelect.selectOption({ label: complexSupplierName });
         console.log(`Successfully selected complex workflow supplier: ${complexSupplierName}`);
       } else {
         console.log(`Complex supplier not found in dropdown, using fallback`);
         // Use any available supplier as fallback
-        const supplierDropdown = page.getByRole('combobox').first();
-        await supplierDropdown.click();
-        const anyOption = page.locator('[role="option"]').first();
-        if (await anyOption.isVisible({ timeout: 5000 })) {
-          await anyOption.click();
+        const supplierSelect = page.locator('select[name="supplier_id"]');
+        const allOptions = supplierSelect.locator('option:not([value=""])');
+        const hasAnySupplier = await allOptions.count() > 0;
+        
+        if (hasAnySupplier) {
+          const firstOption = allOptions.first();
+          const fallbackSupplierValue = await firstOption.getAttribute('value');
+          await supplierSelect.selectOption({ value: fallbackSupplierValue! });
         }
       }
     } else {

@@ -1,18 +1,5 @@
 
 import { test, expect } from '@playwright/test';
-import type { Page } from '@playwright/test';
-import credentials from './test_data/test_credentials.json';
-
-const testUser = credentials.test_users[0]; // Use the first user for tests
-
-async function login(page: Page) {
-    await page.goto('/login');
-    await page.fill('input[name="email"]', testUser.email);
-    await page.fill('input[name="password"]', testUser.password);
-    await page.click('button[type="submit"]');
-    await page.waitForURL('/dashboard', { timeout: 30000 });
-    await page.waitForLoadState('networkidle');
-}
 
 // This file serves as a placeholder for performance tests.
 // In a real-world scenario, these tests would use tools like Artillery.io, k6, or
@@ -21,12 +8,9 @@ async function login(page: Page) {
 test.describe('Performance Benchmarks', () => {
 
   test('Dashboard loads within performance budget', async ({ page }) => {
-    await page.goto('/login');
-    await page.fill('input[name="email"]', testUser.email);
-    await page.fill('input[name="password"]', testUser.password);
-    
+    // Using shared authentication state - already logged in
     const startTime = Date.now();
-    await page.click('button[type="submit"]');
+    await page.goto('/dashboard');
     await page.waitForURL('/dashboard');
     // Using locator-based wait for better reliability
     await expect(page.getByTestId('dashboard-root').or(page.getByText('Welcome to ARVO'))).toBeVisible({ timeout: 15000 });
@@ -37,7 +21,7 @@ test.describe('Performance Benchmarks', () => {
   });
 
   test('API response time for inventory search is acceptable', async ({ page }) => {
-    await login(page);
+    // Using shared authentication state - already logged in
     await page.goto('/inventory');
     await page.waitForURL('/inventory');
     

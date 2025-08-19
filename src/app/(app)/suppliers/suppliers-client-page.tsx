@@ -66,15 +66,24 @@ export function SuppliersClientPage({ initialSuppliers }: { initialSuppliers: Su
     generateAndSetCsrfToken(setCsrfToken);
   }, []);
 
+  // Ensure CSRF token is available when dialog opens
+  useEffect(() => {
+    if (supplierToDelete && !csrfToken) {
+      generateAndSetCsrfToken(setCsrfToken);
+    }
+  }, [supplierToDelete, csrfToken]);
+
   const handleDelete = async () => {
-    if (!supplierToDelete || !csrfToken) {
+    if (!supplierToDelete) {
         toast({ variant: 'destructive', title: "Error", description: 'Could not perform action. Please refresh.' });
         return;
     };
     startTransition(async () => {
         const formData = new FormData();
         formData.append('id', supplierToDelete.id);
-        formData.append(CSRF_FORM_NAME, csrfToken);
+        if (csrfToken) {
+          formData.append(CSRF_FORM_NAME, csrfToken);
+        }
 
         const result = await deleteSupplier(formData);
 
@@ -151,7 +160,7 @@ export function SuppliersClientPage({ initialSuppliers }: { initialSuppliers: Su
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} disabled={isPending || !csrfToken} className="bg-destructive hover:bg-destructive/90">
+            <AlertDialogAction onClick={handleDelete} disabled={isPending} className="bg-destructive hover:bg-destructive/90">
               {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Yes, delete
             </AlertDialogAction>

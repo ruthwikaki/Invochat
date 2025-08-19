@@ -73,6 +73,41 @@ export const markdownOptimizerFlow = ai.defineFlow(
     outputSchema: MarkdownOutputSchema,
   },
   async ({ companyId }) => {
+    // Check if we should use mock data for testing
+    if (process.env.MOCK_AI === 'true') {
+      return {
+        suggestions: [
+          {
+            sku: "DEAD-001",
+            productName: "Winter Coat XL",
+            currentStock: 45,
+            totalValue: 2250,
+            markdownStrategy: [
+              {
+                phase: 1,
+                discountPercentage: 25,
+                durationDays: 14,
+                expectedSellThrough: 40
+              },
+              {
+                phase: 2,
+                discountPercentage: 50,
+                durationDays: 21,
+                expectedSellThrough: 70
+              },
+              {
+                phase: 3,
+                discountPercentage: 75,
+                durationDays: 30,
+                expectedSellThrough: 95
+              }
+            ]
+          }
+        ],
+        analysis: "Mock analysis: This markdown strategy uses a phased approach to maximize revenue recovery while clearing dead stock efficiently."
+      };
+    }
+
     try {
       // Step 1: Get the list of dead stock items by calling the DB function directly.
       const deadStockData = await getDeadStockReportFromDB(companyId);

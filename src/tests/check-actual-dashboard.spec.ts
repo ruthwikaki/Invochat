@@ -1,11 +1,8 @@
 // src/tests/check-actual-dashboard.spec.ts
-import { test, expect } from '@playwright/test';
-import credentials from './test_data/test_credentials.json';
+import { test } from '@playwright/test';
 
 // Use shared authentication setup
 test.use({ storageState: 'playwright/.auth/user.json' });
-
-const testUser = credentials.test_users[0];
 
 test('check dashboard data fetching', async ({ page }) => {
   // Enable console logging

@@ -150,6 +150,28 @@ export const getPromotionalImpactAnalysis = ai.defineTool(
       outputSchema: z.any(),
   },
   async ({ companyId, skus, discountPercentage, durationDays }) => {
+    // Check if we should use mock data for testing
+    if (process.env.MOCK_AI === 'true') {
+      return {
+        estimated_impact: {
+          total_revenue_increase: 15000,
+          total_profit_increase: 8500,
+          estimated_units_sold: 75,
+          breakeven_unit_increase: 42
+        },
+        product_breakdown: [
+          {
+            sku: skus[0] || "MOCK-001",
+            current_price: 2999,
+            promotional_price: Math.round(2999 * (1 - discountPercentage)),
+            estimated_unit_increase: 25,
+            revenue_impact: 7500
+          }
+        ],
+        summary: `Mock analysis: ${Math.round(discountPercentage * 100)}% discount over ${durationDays} days would drive significant sales volume increase while maintaining positive ROI.`
+      };
+    }
+
     try {
         const safeSkus = skus.slice(0, 50); // Limit to 50 SKUs
         const safeDuration = Math.min(durationDays, 90); // Limit to 90 days

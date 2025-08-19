@@ -1,6 +1,5 @@
 
 import { test, expect } from '@playwright/test';
-import type { Page } from '@playwright/test';
 import credentials from './test_data/test_credentials.json';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { switchUser } from './test-utils';
@@ -12,36 +11,6 @@ const adminUser = credentials.test_users[0];
 const memberUserEmail = `testmember-${Date.now()}@example.com`;
 const memberUserPassword = 'TestMemberPassword123!';
 const memberUser = { email: memberUserEmail, password: memberUserPassword };
-
-async function login(page: Page, user: { email: string, password: string }) {
-    console.log(`🔐 Logging in as ${user.email}...`);
-    
-    // Navigate to login and wait for page to be ready
-    await page.goto('/login', { waitUntil: 'networkidle' });
-    
-    // Wait for login form to be visible and interactable
-    await page.waitForSelector('input[name="email"]', { state: 'visible' });
-    await page.waitForSelector('input[name="password"]', { state: 'visible' });
-    await page.waitForSelector('button[type="submit"]', { state: 'visible' });
-    
-    // Fill form fields
-    await page.fill('input[name="email"]', user.email);
-    await page.fill('input[name="password"]', user.password);
-    
-    // Submit form and wait for navigation
-    const navigationPromise = page.waitForURL('/dashboard', { timeout: 45000 });
-    await page.click('button[type="submit"]');
-    
-    try {
-        await navigationPromise;
-        console.log(`✅ Successfully logged in as ${user.email}`);
-    } catch (error) {
-        console.error(`❌ Login failed for ${user.email}:`, error);
-        // Take a screenshot for debugging
-        await page.screenshot({ path: `login-failure-${Date.now()}.png`, fullPage: true });
-        throw error;
-    }
-}
 
 test.describe('Admin & Role Permission Tests', () => {
 

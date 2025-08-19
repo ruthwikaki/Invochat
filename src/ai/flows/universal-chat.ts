@@ -144,6 +144,21 @@ export const universalChatFlow = ai.defineFlow(
         throw new Error("User query was empty.");
     }
 
+    // Mock response for testing to avoid API quota issues
+    if (process.env.MOCK_AI === 'true') {
+      return {
+        response: `I understand you're asking about "${userQuery}". Based on your inventory data, I can provide helpful insights about your business performance, product analysis, and recommendations. This is a mock response for testing purposes.`,
+        visualization: {
+          type: 'none' as const,
+          title: 'Mock Analysis'
+        },
+        confidence: 0.9,
+        assumptions: ['This is a mocked response for testing'],
+        data: { mockData: true },
+        toolName: 'mockTool'
+      };
+    }
+
     // --- Redis Caching Logic ---
     const queryHash = crypto.createHash('sha256').update(userQuery.toLowerCase().trim()).digest('hex');
     const cacheKey = `aichat:${companyId}:${queryHash}`;

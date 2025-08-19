@@ -7,7 +7,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
 import { getDeadStockReportFromDB } from '@/services/database';
-import { DeadStockItemSchema, type DeadStockItem } from '@/types';
+import { DeadStockItemSchema } from '@/types';
 import { logError } from '@/lib/error-handler';
 
 const DeadStockReportSchema = z.object({

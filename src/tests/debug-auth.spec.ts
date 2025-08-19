@@ -1,22 +1,9 @@
 // src/tests/debug-auth.spec.ts
-import { test, expect } from '@playwright/test';
-import credentials from './test_data/test_credentials.json';
-
-const testUser = credentials.test_users[0];
+import { test } from '@playwright/test';
 
 test('debug auth and data access', async ({ page, request }) => {
-  // Login
-  await page.goto('/login', { waitUntil: 'networkidle', timeout: 60000 });
-  
-  // Wait for form elements to be ready
-  await expect(page.locator('input[name="email"]')).toBeVisible();
-  await expect(page.locator('input[name="password"]')).toBeVisible();
-  
-  await page.fill('input[name="email"]', testUser.email);
-  await page.fill('input[name="password"]', testUser.password);
-  await page.click('button[type="submit"]');
-  
-  // Wait for dashboard
+  // Using shared authentication state - already logged in
+  await page.goto('/dashboard', { waitUntil: 'networkidle', timeout: 60000 });
   await page.waitForURL('/dashboard');
   
   // Check what the API returns
