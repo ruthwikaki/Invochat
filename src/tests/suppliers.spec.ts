@@ -82,7 +82,25 @@ test.describe('Supplier Management', () => {
 
     // 5. Delete the supplier
     const updatedRow = page.locator('tr', { hasText: updatedName });
-    await updatedRow.getByRole('button').click();
+    
+    // Wait for any toasts to disappear first
+    await page.waitForTimeout(2000);
+    
+    // Try clicking the menu button, with retry logic for toast interference
+    let attempts = 0;
+    while (attempts < 3) {
+      try {
+        await updatedRow.getByRole('button').click({ timeout: 5000 });
+        break;
+      } catch (error) {
+        attempts++;
+        if (attempts >= 3) throw error;
+        await page.waitForTimeout(1000);
+        // Dismiss any toasts that might be in the way
+        await page.keyboard.press('Escape');
+      }
+    }
+    
     await page.click('div[role="menuitem"]:has-text("Delete")');
 
     await expect(page.getByText('Are you sure?')).toBeVisible();

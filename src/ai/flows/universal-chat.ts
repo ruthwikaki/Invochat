@@ -24,6 +24,7 @@ import { getPriceOptimizationSuggestions } from './price-optimization-flow';
 import { getBundleSuggestions } from './suggest-bundles-flow';
 import { findHiddenMoney } from './hidden-money-finder-flow';
 import { getProductDemandForecast } from './product-demand-forecast-flow';
+import { getEnhancedDemandForecast, getCompanyForecastSummary, getBulkEnhancedForecast } from './enhanced-forecasting-tools';
 import { getDemandForecast, getAbcAnalysis, getGrossMarginAnalysis, getNetMarginByChannel, getMarginTrends, getSalesVelocity, getPromotionalImpactAnalysis } from './analytics-tools';
 import { logError, getErrorMessage } from '@/lib/error-handler';
 import crypto from 'crypto';
@@ -41,6 +42,9 @@ const safeToolsForOrchestrator: ToolArgument[] = [
     findHiddenMoney,
     getEconomicIndicators,
     getProductDemandForecast,
+    getEnhancedDemandForecast,
+    getCompanyForecastSummary,
+    getBulkEnhancedForecast,
     getDemandForecast,
     getAbcAnalysis,
     getGrossMarginAnalysis,
@@ -105,23 +109,54 @@ const getFinalResponsePrompt = () => {
  * @throws An error if the request fails after all retry attempts.
  */
 async function generateWithRetry(request: GenerateOptions): Promise<GenerateResponse> {
-    const MAX_RETRIES = 3;
+    const MAX_RETRIES = 5; // Increased from 3 to 5
     let lastError: Error | undefined;
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
-            const modelToUse = attempt === 1 ? config.ai.model : 'googleai/gemini-1.5-flash';
-            const finalRequest: GenerateOptions = { ...request, model: modelToUse as any };
-            return await ai.generate(finalRequest);
+            // Enhanced model selection strategy for better reliability
+            let modelToUse = config.ai.model;
+            if (attempt === 2) modelToUse = 'googleai/gemini-1.5-flash'; // Fast model as backup
+            if (attempt === 3) modelToUse = 'googleai/gemini-1.5-pro-001'; // Alternative pro version
+            if (attempt === 4) modelToUse = 'googleai/gemini-1.5-flash-001'; // Alternative flash version
+            if (attempt === 5) modelToUse = 'googleai/gemini-1.5-flash-8b'; // Lightweight final fallback
+            
+            const finalRequest: GenerateOptions = { 
+                ...request, 
+                model: modelToUse as any,
+                config: {
+                    ...request.config,
+                    temperature: Math.max(0.1, (request.config?.temperature || 0.2) - (attempt * 0.02)), // Reduce randomness with retries
+                    maxOutputTokens: Math.min(request.config?.maxOutputTokens || 2048, 2048), // Ensure token limit
+                    stopSequences: request.config?.stopSequences || ['<|endoftext|>', '\n\nHuman:', '\n\nUser:'],
+                    candidateCount: 1, // Force single response for consistency
+                }
+            };
+            
+            logger.info(`[AI Generate] Attempt ${attempt}/${MAX_RETRIES} with model: ${modelToUse}`);
+            const response = await ai.generate(finalRequest);
+            
+            // Validate response quality
+            if (!response || (!response.text && !response.toolRequests)) {
+                throw new Error('Empty response from AI model');
+            }
+            
+            logger.info(`[AI Generate] Success on attempt ${attempt}`);
+            return response;
+            
         } catch (e: unknown) {
             lastError = e instanceof Error ? e : new Error(getErrorMessage(e));
-            logger.warn(`[AI Generate] Attempt ${attempt} failed: ${lastError.message}`);
+            logger.warn(`[AI Generate] Attempt ${attempt}/${MAX_RETRIES} failed: ${lastError.message}`);
             
             if (attempt === MAX_RETRIES) break;
 
-            const delay = Math.pow(2, attempt - 1) * 1000;
-            logger.info(`[AI Generate] Retrying with fallback model in ${delay}ms...`);
-            await new Promise(resolve => setTimeout(resolve, delay));
+            // Enhanced exponential backoff with jitter
+            const baseDelay = Math.pow(2, attempt - 1) * 1000; // 1s, 2s, 4s, 8s, 16s
+            const jitter = Math.random() * 1000; // Add up to 1s random delay
+            const delayMs = baseDelay + jitter;
+            
+            logger.info(`[AI Generate] Waiting ${Math.round(delayMs)}ms before retry ${attempt + 1}`);
+            await new Promise(resolve => setTimeout(resolve, delayMs));
         }
     }
     
@@ -183,11 +218,30 @@ export const universalChatFlow = ai.defineFlow(
         }));
         
         const response = await generateWithRetry({
+            model: config.ai.model as any,
+            system: `You are AIventory's expert inventory analyst AI. You help users understand their business data, make decisions, and optimize their inventory operations.
+
+QUALITY STANDARDS:
+- Always provide actionable insights, not just raw data
+- Use business language, not technical jargon
+- Be specific and confident in your recommendations
+- If data is missing, suggest concrete next steps
+- Focus on ROI and business impact
+
+RESPONSE GUIDELINES:
+- Keep responses concise but comprehensive (200-400 words ideal)
+- Structure responses with clear sections when appropriate
+- Always include confidence levels and assumptions
+- Suggest appropriate visualizations for the data
+
+AVAILABLE TOOLS: You have access to comprehensive inventory analytics tools including reorder suggestions, dead stock analysis, sales velocity, margin analysis, demand forecasting, and supplier performance data.`,
             tools: safeToolsForOrchestrator,
             messages: genkitHistory,
             config: {
-                temperature: 0.2, // Slightly more creative for better synthesis
+                temperature: 0.15, // Lower temperature for more consistent responses
                 maxOutputTokens: config.ai.maxOutputTokens,
+                topP: 0.8, // Restrict token diversity for better quality
+                topK: 40,  // Further restrict for consistency
             }
         });
         
@@ -256,23 +310,54 @@ export const universalChatFlow = ai.defineFlow(
         const errorMessage = getErrorMessage(e) ?? '';
         logError(e, { context: `Universal Chat Flow failed for query: "${userQuery}"` });
 
-        if (errorMessage && (errorMessage.includes('503') || errorMessage.includes('unavailable') || errorMessage.includes('timed out'))) {
-             return {
-                response: `I'm sorry, but the AI service is currently unavailable or took too long to respond. This may be a temporary issue. Please try again in a few moments.`,
+        // Enhanced error categorization and user-friendly responses
+        if (errorMessage.includes('quota') || errorMessage.includes('limit')) {
+            return {
+                response: `I'm currently experiencing high demand and have temporarily reached my processing limits. This is usually resolved within a few minutes. Please try again shortly, or contact support if this issue persists.`,
                 data: null,
-                visualization: { type: 'none', title: '', data: [] },
+                visualization: { type: 'alert', title: 'Service Temporarily Unavailable', data: [] },
                 confidence: 0.0,
-                assumptions: ['The AI service is unavailable.'],
+                assumptions: ['API quota/rate limit exceeded'],
                 is_error: true,
             };
         }
 
+        if (errorMessage.includes('503') || errorMessage.includes('unavailable') || errorMessage.includes('timed out')) {
+             return {
+                response: `I'm sorry, but my AI service is currently experiencing technical difficulties. This is typically a temporary issue that resolves within a few minutes. Please try your question again in a moment.`,
+                data: null,
+                visualization: { type: 'alert', title: 'AI Service Unavailable', data: [] },
+                confidence: 0.0,
+                assumptions: ['AI service is temporarily unavailable'],
+                is_error: true,
+            };
+        }
+        
+        if (errorMessage.includes('Invalid') || errorMessage.includes('parse') || errorMessage.includes('schema')) {
+            return {
+                response: `I encountered an issue understanding your request. This might be due to the way the question was phrased. Could you try rephrasing your question more simply? For example: "What should I reorder?" or "Show me my best selling products."`,
+                data: null,
+                visualization: { type: 'none', title: '', data: [] },
+                confidence: 0.0,
+                assumptions: ['Request parsing or validation error'],
+                is_error: true,
+            };
+        }
+
+        // Generic error response with helpful guidance
         return {
-            response: `I'm sorry, but I encountered an unexpected error while trying to generate a response. The AI service may be temporarily unavailable. Please try again in a few moments.`,
+            response: `I encountered an unexpected error while processing your request about "${userQuery}". Here are some things you can try:
+
+• **Simplify your question:** Try asking about one specific topic at a time
+• **Use common terms:** Ask about "inventory," "sales," "profits," or "suppliers"  
+• **Try again:** This might be a temporary issue that resolves quickly
+• **Contact support:** If problems persist, our team can help troubleshoot
+
+I'm designed to help with inventory management, sales analysis, and business insights. Feel free to try a different question!`,
             data: null,
-            visualization: { type: 'none', title: '', data: [] },
+            visualization: { type: 'alert', title: 'Processing Error', data: [] },
             confidence: 0.0,
-            assumptions: ['An unexpected error occurred in the AI processing flow.'],
+            assumptions: ['Unexpected error in AI processing pipeline'],
             is_error: true,
         };
     }

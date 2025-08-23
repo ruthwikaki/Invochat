@@ -10,6 +10,7 @@ import { useTransition, useEffect, useMemo, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { CSRF_FORM_NAME, generateAndSetCsrfToken } from '@/lib/csrf-client';
 import { createPurchaseOrder, updatePurchaseOrder } from '@/app/data-actions';
+import { generatePurchaseOrderPDF } from '@/app/actions/pdf-actions';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,7 +19,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { CalendarIcon, Loader2, PlusCircle, Trash2 } from 'lucide-react';
+import { CalendarIcon, Loader2, PlusCircle, Trash2, Download } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn, formatCentsAsCurrency } from '@/lib/utils';
 
@@ -34,6 +35,7 @@ export function PurchaseOrderForm({ initialData, suppliers, products }: Purchase
     const searchParams = useSearchParams();
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
+    const [isPdfGenerating, setIsPdfGenerating] = useState(false);
     const [csrfToken, setCsrfToken] = useState<string | null>("dummy-token-for-now");
 
     useEffect(() => {
@@ -157,6 +159,72 @@ export function PurchaseOrderForm({ initialData, suppliers, products }: Purchase
             }
         });
     }
+
+    const downloadPDF = async () => {
+        if (!initialData?.id) {
+            toast({ 
+                variant: 'destructive', 
+                title: 'Error', 
+                description: 'Please save the purchase order before generating PDF' 
+            });
+            return;
+        }
+
+        setIsPdfGenerating(true);
+        try {
+            // Get supplier information
+            const selectedSupplier = suppliers.find(s => s.id === initialData.supplier_id);
+            const supplierName = selectedSupplier?.name || 'Unknown Supplier';
+            const supplierInfo = {
+                email: selectedSupplier?.email || null,
+                phone: selectedSupplier?.phone || null,
+                notes: selectedSupplier?.notes || null,
+            };
+
+            const result = await generatePurchaseOrderPDF({
+                purchaseOrderId: initialData.id,
+                supplierName,
+                supplierInfo,
+            });
+
+            if (result.success && result.pdf) {
+                // Create download link
+                const byteCharacters = atob(result.pdf);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray], { type: 'application/pdf' });
+                
+                const url = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = result.filename || `PO-${initialData.id}.pdf`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(url);
+
+                toast({ title: 'PDF downloaded successfully' });
+            } else {
+                toast({ 
+                    variant: 'destructive', 
+                    title: 'Error', 
+                    description: result.error || 'Failed to generate PDF' 
+                });
+            }
+        } catch (error) {
+            console.error('PDF download failed:', error);
+            toast({ 
+                variant: 'destructive', 
+                title: 'Error', 
+                description: 'Failed to download PDF' 
+            });
+        } finally {
+            setIsPdfGenerating(false);
+        }
+    };
 
     return (
         <form onSubmit={(e) => {
@@ -311,11 +379,32 @@ export function PurchaseOrderForm({ initialData, suppliers, products }: Purchase
                         <CardHeader>
                             <CardTitle>Summary</CardTitle>
                         </CardHeader>
-                        <CardContent>
+                        <CardContent className="space-y-4">
                             <div className="flex justify-between items-center text-lg font-semibold">
                                 <span>Total Cost</span>
                                 <span>{formatCentsAsCurrency(totalCost)}</span>
                             </div>
+                            {initialData && (
+                                <Button 
+                                    type="button" 
+                                    variant="outline" 
+                                    onClick={downloadPDF}
+                                    disabled={isPdfGenerating}
+                                    className="w-full"
+                                >
+                                    {isPdfGenerating ? (
+                                        <>
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            Generating PDF...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Download className="mr-2 h-4 w-4" />
+                                            Download PDF
+                                        </>
+                                    )}
+                                </Button>
+                            )}
                         </CardContent>
                     </Card>
                     <div className="flex justify-end gap-2">

@@ -43,9 +43,10 @@ export async function GET(_request: NextRequest) {
             totalRevenue,
         });
 
-    } catch (e: any) {
-        logger.error('Debug API failed', { error: e.message });
-        return NextResponse.json({ error: e.message }, { status: 500 });
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        logger.error('Debug API failed', { error: errorMessage });
+        return NextResponse.json({ error: errorMessage }, { status: 500 });
     }
 }
 

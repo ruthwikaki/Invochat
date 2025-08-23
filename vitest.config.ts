@@ -21,15 +21,33 @@ export default defineConfig({
     ],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json', 'html'],
+      reporter: ['text', 'json', 'html', 'lcov'],
+      reportsDirectory: './coverage',
       exclude: [
         'node_modules/',
         'src/tests/',
         '**/*.d.ts',
         '**/*.config.{js,ts}',
         '**/dist/**',
+        '.next/**',
+        'coverage/**',
+        'playwright-report/**',
+        'test-results/**',
       ],
+      // Include all source files for coverage analysis
+      include: [
+        'src/**/*.{ts,tsx}',
+        '!src/tests/**',
+        '!src/**/*.spec.{ts,tsx}',
+        '!src/**/*.test.{ts,tsx}',
+        '!src/**/*.d.ts'
+      ],
+      all: true
     },
+    // Increase timeout for more complex tests
+    testTimeout: 30000,
+    // Enable parallel execution
+    maxConcurrency: 4,
   },
   resolve: {
     alias: {

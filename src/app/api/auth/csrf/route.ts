@@ -12,7 +12,8 @@ export async function POST() {
   try {
     await generateCSRFToken();
     return NextResponse.json({ success: true, message: "CSRF token set successfully." }, { status: 200 });
-  } catch (e) {
+  } catch (error) {
+    console.error('CSRF generation failed:', error);
     return NextResponse.json({ success: false, error: 'Failed to generate CSRF token.' }, { status: 500 });
   }
 }

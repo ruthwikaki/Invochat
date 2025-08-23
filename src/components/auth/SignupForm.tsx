@@ -57,6 +57,7 @@ export function SignupForm({ error: initialError }: { error: string | null; }) {
                     placeholder="••••••••"
                     required
                     minLength={8}
+                    data-testid="password"
                 />
                 <p className="text-xs text-muted-foreground px-1">
                     Must be at least 8 characters.

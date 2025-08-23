@@ -39,6 +39,7 @@ export function UserAccountNav({user}: {user: User | null}) {
                     size="icon"
                     className="h-8 w-8 ml-auto"
                     aria-label="User Menu"
+                    data-testid="user-menu"
                 >
                     <UserIcon className="h-4 w-4" />
                 </Button>
@@ -65,7 +66,7 @@ export function UserAccountNav({user}: {user: User | null}) {
                         </DropdownMenuItem>
                     </DropdownMenuSubContent>
                 </DropdownMenuSub>
-                <DropdownMenuItem onClick={handleLogout}>
+                <DropdownMenuItem onClick={handleLogout} data-testid="logout">
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>Sign Out</span>
                 </DropdownMenuItem>

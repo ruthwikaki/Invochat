@@ -137,6 +137,73 @@ export async function sendWelcomeEmail(email: string): Promise<void> {
 type AnomalyWithExplanation = Anomaly & { explanation?: string };
 
 /**
+ * Sends a purchase order to a supplier via email.
+ * @param supplierEmail The supplier's email address.
+ * @param supplierName The supplier's name.
+ * @param poDetails The purchase order details.
+ */
+export async function sendPurchaseOrderEmail(
+    supplierEmail: string, 
+    supplierName: string, 
+    poDetails: {
+        po_number: string;
+        company_name: string;
+        total_cost: number;
+        expected_arrival_date?: string;
+        notes?: string;
+        line_items: Array<{
+            product_name: string;
+            sku: string;
+            quantity: number;
+            cost: number;
+        }>;
+    }
+): Promise<void> {
+    const subject = `Purchase Order ${poDetails.po_number} from ${poDetails.company_name}`;
+    
+    const lineItemsText = poDetails.line_items.map(item => 
+        `- ${item.product_name} (${item.sku}): ${item.quantity} units @ $${(item.cost / 100).toFixed(2)} = $${((item.quantity * item.cost) / 100).toFixed(2)}`
+    ).join('\n');
+    
+    const body = `
+Dear ${supplierName},
+
+We would like to place the following purchase order with your company:
+
+---
+PURCHASE ORDER: ${poDetails.po_number}
+---
+From: ${poDetails.company_name}
+Expected Delivery: ${poDetails.expected_arrival_date ? new Date(poDetails.expected_arrival_date).toLocaleDateString() : 'TBD'}
+
+LINE ITEMS:
+${lineItemsText}
+
+---
+TOTAL ORDER VALUE: $${(poDetails.total_cost / 100).toFixed(2)}
+---
+
+${poDetails.notes ? `
+NOTES:
+${poDetails.notes}
+
+` : ''}Please confirm receipt of this purchase order and provide:
+1. Order confirmation
+2. Expected delivery date
+3. Tracking information when available
+
+You can reply to this email or contact us through your preferred communication channel.
+
+Thank you for your business!
+
+Best regards,
+${poDetails.company_name}
+    `.trim();
+    
+    await sendEmail(supplierEmail, subject, body, `Purchase Order: ${poDetails.po_number}`);
+}
+
+/**
  * Sends a daily or weekly inventory digest email.
  * @param to The recipient's email address.
  * @param insights An object containing the data for the digest.

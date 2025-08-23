@@ -19,6 +19,7 @@ function LoginSubmitButton() {
             type="submit" 
             disabled={pending} 
             className="w-full h-12 text-base font-semibold"
+            data-testid="sign-in"
         >
             {pending ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
         </Button>
@@ -42,6 +43,7 @@ export function LoginForm({ initialError }: { initialError: string | null; }) {
                 type="email"
                 placeholder="you@company.com"
                 required
+                data-testid="email"
             />
         </div>
         
@@ -60,6 +62,7 @@ export function LoginForm({ initialError }: { initialError: string | null; }) {
                 name="password"
                 placeholder="••••••••"
                 required
+                data-testid="password"
             />
         </div>
         

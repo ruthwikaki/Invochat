@@ -82,6 +82,7 @@ export const priceOptimizationFlow = ai.defineFlow(
         suggestions: [
           {
             sku: "PROD-001",
+            productName: "Premium Widget Pro",
             currentPrice: 2999,
             suggestedPrice: 3299,
             reasoning: "Fast-moving product with good margin. 10% increase recommended to maximize profit.",
@@ -89,6 +90,7 @@ export const priceOptimizationFlow = ai.defineFlow(
           },
           {
             sku: "PROD-002", 
+            productName: "Standard Component Basic",
             currentPrice: 1599,
             suggestedPrice: 1399,
             reasoning: "Slow-moving inventory. 12.5% decrease to stimulate demand and improve cash flow.",

@@ -27,6 +27,7 @@ import {
   Users,
   Settings,
   TrendingDown,
+  TrendingUp,
   RefreshCw,
   Truck,
   Import,
@@ -54,6 +55,7 @@ const reportsNav = [
     { href: '/analytics/supplier-performance', label: 'Suppliers', icon: Truck },
     { href: '/analytics/inventory-turnover', label: 'Turnover', icon: Package },
     { href: '/analytics/ai-insights', label: 'AI Insights', icon: Sparkles },
+    { href: '/analytics/enhanced-forecasting', label: 'ML Forecasting', icon: TrendingUp },
     { href: '/analytics/advanced-reports', label: 'Advanced Reports', icon: TestTubeDiagonal },
     { href: '/analytics/ai-performance', label: 'AI Performance', icon: GraduationCap },
 ];
@@ -99,7 +101,7 @@ export function AppSidebar() {
   });
 
   return (
-    <>
+    <nav data-testid="main-navigation">
       <SidebarHeader>
         <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -169,7 +171,7 @@ export function AppSidebar() {
         </SidebarMenuItem>
         <UserAccountNav user={user} />
       </SidebarFooter>
-    </>
+    </nav>
   );
 }
 

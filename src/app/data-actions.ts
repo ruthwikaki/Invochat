@@ -600,72 +600,243 @@ export async function handleUserMessage(params: { content: string, conversationI
   try {
     const { companyId, userId } = await getAuthContext();
     await checkUserPermission(userId, 'Member');
-    const validatedInput = chatInputSchema.parse(params);
-    let { content, conversationId } = validatedInput;
+    
+    // Enhanced input validation with better error messages
+    const validationResult = chatInputSchema.safeParse(params);
+    if (!validationResult.success) {
+        const errorDetails = validationResult.error.errors.map(e => e.message).join(', ');
+        return { error: `Invalid input: ${errorDetails}` };
+    }
+    
+    let { content, conversationId } = validationResult.data;
+
+    // Enhanced content sanitization and validation
+    const sanitizedContent = content.trim();
+    if (sanitizedContent.length < 2) {
+        return { error: 'Message must be at least 2 characters long.' };
+    }
+
+    if (sanitizedContent.length > 2000) {
+        return { error: 'Message is too long. Please keep it under 2000 characters.' };
+    }
+
+    // Check for potentially problematic content
+    const problematicPatterns = [
+        /^\s*[.!?]+\s*$/,  // Only punctuation
+        /^(.)\1{20,}$/,     // Repeated characters
+        /[\x00-\x1F\x7F]/, // Control characters
+    ];
+    
+    if (problematicPatterns.some(pattern => pattern.test(sanitizedContent))) {
+        return { error: 'Please enter a valid question or request.' };
+    }
 
     const supabase = getServiceRoleClient();
 
+    // Enhanced conversation management with better error handling
     if (!conversationId) {
-        // Create a new conversation if one doesn't exist
-        const {data: newConv, error} = await supabase.from('conversations').insert({ title: content.substring(0, 50), user_id: userId, company_id: companyId}).select().single();
-        if(error || !newConv) {
-             throw new Error("Could not create new conversation.");
+        try {
+            const conversationTitle = sanitizedContent.length > 50 
+                ? sanitizedContent.substring(0, 47) + '...' 
+                : sanitizedContent;
+                
+            const {data: newConv, error} = await supabase
+                .from('conversations')
+                .insert({ 
+                    title: conversationTitle, 
+                    user_id: userId, 
+                    company_id: companyId 
+                })
+                .select()
+                .single();
+                
+            if(error || !newConv) {
+                logError(error, { context: 'Failed to create conversation' });
+                return { error: "Unable to start a new conversation. Please try again." };
+            }
+            conversationId = newConv.id;
+        } catch (convError) {
+            logError(convError, { context: 'Conversation creation failed' });
+            return { error: "Unable to start a new conversation. Please try again." };
         }
-        conversationId = newConv.id;
     }
     
-    const {data: history, error: historyError} = await supabase.from('messages').select('*').eq('conversation_id', conversationId).order('created_at', {ascending: false}).limit(10);
-    if(historyError) {
-        logError(historyError, {context: 'Failed to retrieve conversation history'});
-        // continue, but with empty history
+    // Enhanced conversation history retrieval with validation
+    let conversationHistory: any[] = [];
+    try {
+        const {data: history, error: historyError} = await supabase
+            .from('messages')
+            .select('*')
+            .eq('conversation_id', conversationId)
+            .eq('company_id', companyId) // Ensure company isolation
+            .order('created_at', {ascending: false})
+            .limit(10);
+            
+        if(historyError) {
+            logError(historyError, {context: 'Failed to retrieve conversation history'});
+            // Continue with empty history rather than failing completely
+        } else {
+            conversationHistory = (history || []).reverse();
+        }
+    } catch (histError) {
+        logError(histError, {context: 'Conversation history retrieval error'});
+        // Continue with empty history
     }
 
-    const reversedHistory = (history || []).reverse();
-
-    // Build conversation history including the current user message
-    const conversationHistory = [
-        ...reversedHistory.map((m: any) => ({ 
-            role: m.role, 
-            content: [{ text: m.content }] 
-        })),
-        // Add the current user message to the end
+    // Build validated conversation history
+    const processedHistory = [
+        ...conversationHistory
+            .filter(m => m.content && typeof m.content === 'string' && m.content.trim().length > 0)
+            .map((m: any) => ({ 
+                role: m.role === 'assistant' ? 'model' : m.role, 
+                content: [{ text: m.content.trim() }] 
+            })),
+        // Add the current user message
         {
             role: 'user' as const,
-            content: [{ text: content }]
+            content: [{ text: sanitizedContent }]
         }
     ];
 
-    const aiResponse = await universalChatFlow({
-        companyId: companyId,
-        conversationHistory: conversationHistory,
-    });
+    // Enhanced AI response generation with timeout and retry logic
+    let aiResponse: any;
+    try {
+        // Add timeout protection
+        const AI_TIMEOUT = 30000; // 30 seconds
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('AI response timeout')), AI_TIMEOUT)
+        );
+        
+        const aiPromise = universalChatFlow({
+            companyId: companyId,
+            conversationHistory: processedHistory,
+        });
+        
+        aiResponse = await Promise.race([aiPromise, timeoutPromise]) as any;
+        
+        // Validate AI response structure
+        if (!aiResponse || typeof aiResponse !== 'object') {
+            throw new Error('Invalid AI response structure');
+        }
+        
+        if (!aiResponse.response || typeof aiResponse.response !== 'string') {
+            throw new Error('AI response missing or invalid response text');
+        }
+        
+        // Ensure response is not too long
+        if (aiResponse.response.length > 4000) {
+            aiResponse.response = aiResponse.response.substring(0, 3997) + '...';
+        }
+        
+    } catch (aiError) {
+        logError(aiError, { context: 'AI chat flow failed', userQuery: sanitizedContent });
+        
+        // Provide helpful fallback based on error type
+        const errorMessage = getErrorMessage(aiError);
+        
+        if (errorMessage.includes('timeout')) {
+            aiResponse = {
+                response: `I'm taking longer than usual to process your request about "${sanitizedContent}". This might be due to high demand. Please try again with a simpler question, or wait a moment and retry.`,
+                confidence: 0.0,
+                assumptions: ['AI processing timeout'],
+                is_error: true,
+                visualization: { type: 'alert', title: 'Response Timeout', data: [] }
+            };
+        } else if (errorMessage.includes('quota') || errorMessage.includes('limit')) {
+            aiResponse = {
+                response: `I'm currently experiencing high demand and have reached temporary processing limits. This usually resolves within a few minutes. Please try again shortly.`,
+                confidence: 0.0,
+                assumptions: ['API rate limit or quota exceeded'],
+                is_error: true,
+                visualization: { type: 'alert', title: 'Service Temporarily Limited', data: [] }
+            };
+        } else {
+            aiResponse = {
+                response: `I encountered an issue processing your request about "${sanitizedContent}". This could be temporary. Please try:
 
+• Rephrasing your question more simply
+• Asking about specific inventory topics like "reorder suggestions" or "dead stock"
+• Waiting a moment and trying again
+
+If the problem persists, please contact support.`,
+                confidence: 0.0,
+                assumptions: ['AI processing error'],
+                is_error: true,
+                visualization: { type: 'alert', title: 'Processing Error', data: [] }
+            };
+        }
+    }
+
+    // Enhanced message construction with validation
+    const messageId = crypto.randomUUID();
+    const currentTime = new Date().toISOString();
+    
     const newMessage = {
-        id: z.string().uuid().parse(crypto.randomUUID()),
+        id: messageId,
         conversation_id: conversationId,
         company_id: companyId,
         role: 'assistant' as const,
-        content: aiResponse.response,
+        content: aiResponse.response.trim(),
         visualization: aiResponse.visualization ? JSON.parse(JSON.stringify(aiResponse.visualization)) : null,
-        component: aiResponse.toolName,
-        component_props: aiResponse.data,
-        confidence: aiResponse.confidence,
-        assumptions: aiResponse.assumptions,
-        created_at: new Date().toISOString(),
-        is_error: aiResponse.is_error,
+        component: aiResponse.toolName || null,
+        component_props: aiResponse.data || null,
+        confidence: Math.max(0.0, Math.min(1.0, aiResponse.confidence || 0.0)),
+        assumptions: Array.isArray(aiResponse.assumptions) ? aiResponse.assumptions : [],
+        created_at: currentTime,
+        is_error: Boolean(aiResponse.is_error),
     };
 
-    const { error: insertError } = await getServiceRoleClient().from('messages').insert([newMessage]);
-    if(insertError) {
-        logError(insertError, {context: 'Failed to save assistant message'});
+    // Enhanced message persistence with retry logic
+    try {
+        const { error: insertError } = await supabase
+            .from('messages')
+            .insert([newMessage]);
+            
+        if(insertError) {
+            logError(insertError, {context: 'Failed to save assistant message to database'});
+            
+            // Return the message anyway since the AI processing succeeded
+            console.warn('Message not persisted to database, but returning AI response');
+            return { 
+                newMessage: newMessage as Message, 
+                conversationId: conversationId || undefined,
+                error: 'Message generated successfully but not saved to history'
+            };
+        }
+    } catch (dbError) {
+        logError(dbError, {context: 'Database insertion error for assistant message'});
+        
+        // Still return the response since AI processing worked
+        return { 
+            newMessage: newMessage as Message, 
+            conversationId: conversationId || undefined,
+            error: 'Message generated successfully but not saved to history'
+        };
     }
 
-    return { newMessage: newMessage as Message, conversationId: conversationId || undefined };
+    return { 
+        newMessage: newMessage as Message, 
+        conversationId: conversationId || undefined 
+    };
 
   } catch(e) {
     const errorMessage = getErrorMessage(e);
-    logError(e, {context: 'handleUserMessage failed'});
-    return { error: errorMessage };
+    logError(e, {context: 'handleUserMessage failed', input: params});
+    
+    // Provide helpful error messages based on error type
+    if (errorMessage.includes('permission')) {
+        return { error: 'You do not have permission to use the chat feature.' };
+    }
+    
+    if (errorMessage.includes('auth') || errorMessage.includes('unauthorized')) {
+        return { error: 'Please log in to use the chat feature.' };
+    }
+    
+    if (errorMessage.includes('validation') || errorMessage.includes('invalid')) {
+        return { error: 'Invalid request format. Please refresh the page and try again.' };
+    }
+    
+    return { error: 'An unexpected error occurred. Please try again or contact support if the issue persists.' };
   }
 }
 

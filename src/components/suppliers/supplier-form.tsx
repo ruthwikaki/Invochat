@@ -85,13 +85,13 @@ export function SupplierForm({ initialData }: SupplierFormProps) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="name">Supplier Name</Label>
-              <Input id="name" {...form.register('name')} />
-              {form.formState.errors.name && <p className="text-sm text-destructive">{form.formState.errors.name.message}</p>}
+              <Input id="name" data-testid="supplier-name" required {...form.register('name')} />
+              {form.formState.errors.name && <p className="text-sm text-destructive" data-testid="name-error">{form.formState.errors.name.message}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Contact Email</Label>
-              <Input id="email" type="email" {...form.register('email')} />
-              {form.formState.errors.email && <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>}
+              <Input id="email" type="email" data-testid="supplier-email" required {...form.register('email')} />
+              {form.formState.errors.email && <p className="text-sm text-destructive" data-testid="email-error">{form.formState.errors.email.message}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="phone">Phone Number</Label>
@@ -109,7 +109,7 @@ export function SupplierForm({ initialData }: SupplierFormProps) {
         </CardContent>
         <CardFooter className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => router.back()}>Cancel</Button>
-            <Button type="submit" disabled={isPending}>
+            <Button type="submit" disabled={isPending} data-testid="save-supplier">
                 {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {initialData ? 'Save Changes' : 'Create Supplier'}
             </Button>

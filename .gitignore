@@ -77,6 +77,10 @@ firestore-debug.log
 tmp/
 temp/
 
+# Supabase temporary files
+supabase/.temp/
+**/.temp/
+
 # Analysis and documentation files (generated)
 *.md
 !README.md

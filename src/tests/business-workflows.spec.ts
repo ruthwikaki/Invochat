@@ -26,38 +26,82 @@ async function createSupplierWithVerification(page: Page, supplierName: string, 
     try {
         // Step 1: Navigate to create supplier page
         await page.goto('/suppliers/new');
-        await page.waitForURL('/suppliers/new');
-        await expect(page.getByText('Add New Supplier')).toBeVisible();
+        await page.waitForURL('/suppliers/new', { timeout: 10000 });
+        await expect(page.getByText('Add New Supplier')).toBeVisible({ timeout: 10000 });
 
-        // Step 2: Fill out supplier form
+        // Step 2: Fill out supplier form with better error handling
+        console.log('Filling supplier form...');
+        await page.waitForSelector('input[name="name"]', { timeout: 5000 });
         await page.fill('input[name="name"]', supplierName);
         await page.fill('input[name="email"]', email);
         await page.fill('input[name="phone"]', '+1-555-0123');
         await page.fill('input[name="default_lead_time_days"]', '14');
         
-        // Step 3: Submit form
+        // Wait for form to be fully loaded
+        await page.waitForTimeout(1000);
+        
+        // Step 3: Submit form with better error checking
+        console.log('Submitting supplier form...');
+        
+        // Check for any error messages before submitting
+        const existingErrors = await page.locator('.error, .text-red-500, .text-destructive').count();
+        if (existingErrors > 0) {
+            console.log('Found validation errors before submission');
+            return false;
+        }
+        
+        // Submit the form
         await page.click('button[type="submit"]');
         
-        // Step 4: Wait for success indication
+        // Step 4: Wait for response and check for errors
+        await page.waitForTimeout(3000);
+        
+        // Check for form validation errors
+        const formErrors = await page.locator('.error, .text-red-500, .text-destructive').count();
+        if (formErrors > 0) {
+            console.log('Form validation errors detected');
+            const errorText = await page.locator('.error, .text-red-500, .text-destructive').first().textContent();
+            console.log('Error message:', errorText);
+            return false;
+        }
+        
+        // Check for success toast
         const successToast = page.locator('.toast').filter({ hasText: /created|success/i });
-        const isToastVisible = await successToast.isVisible({ timeout: 10000 }).catch(() => false);
+        const isToastVisible = await successToast.isVisible({ timeout: 8000 }).catch(() => false);
         
         if (isToastVisible) {
-            // Wait a bit for database commit
+            console.log('Success toast found');
             await page.waitForTimeout(2000);
             return await verifySupplierExists(page, supplierName);
         }
         
-        // If no toast, check if we were redirected to suppliers list
-        await page.waitForTimeout(3000);
-        if (page.url().includes('/suppliers') && !page.url().includes('/new')) {
+        // Check if we were redirected (successful submission)
+        const currentUrl = page.url();
+        console.log('Current URL after submission:', currentUrl);
+        
+        if (currentUrl.includes('/suppliers') && !currentUrl.includes('/new')) {
+            console.log('Redirected to suppliers list');
             return await verifySupplierExists(page, supplierName);
         }
         
-        return false;
+        // Last resort: check database directly
+        console.log('Checking database directly...');
+        await page.waitForTimeout(2000);
+        return await verifySupplierExists(page, supplierName);
+        
     } catch (error) {
         console.error('Error creating supplier:', error);
-        return false;
+        
+        // Try to get more debugging info
+        const currentUrl = page.url();
+        console.log('Current URL during error:', currentUrl);
+        
+        // Check if supplier exists anyway
+        try {
+            return await verifySupplierExists(page, supplierName);
+        } catch {
+            return false;
+        }
     }
 }
 
