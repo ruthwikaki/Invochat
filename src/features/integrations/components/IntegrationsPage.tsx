@@ -134,13 +134,18 @@ export function IntegrationsClientPage() {
             queryClient.setQueryData<Integration[]>(['integrations'], old =>
                 old?.map(i => i.id === integrationId ? { ...i, sync_status: 'syncing' } : i)
             );
-            toast({ title: 'Sync Started', description: 'Your data will be updated shortly.'});
+            toast({ 
+                title: 'Manual Sync Started', 
+                description: 'Your store data is being updated. This usually takes 1-2 minutes.',
+                duration: 4000
+            });
             return { previousIntegrations };
         },
         onSuccess: () => {
             toast({
-                title: 'Sync Complete!',
-                description: 'Your data has been updated. The page will now refresh.',
+                title: 'Sync Complete! ✅',
+                description: 'Your products, orders, and inventory are now up to date.',
+                duration: 5000
             });
             // After a successful sync, refresh server components to show new data
             router.refresh();
@@ -204,21 +209,28 @@ export function IntegrationsClientPage() {
             />
             
             <section data-testid="integrations-connected">
-                <h2 className="text-xl font-semibold mb-4">Connected Integrations</h2>
+                <h2 className="text-xl font-semibold mb-4">Connected Integration</h2>
                 <div className="space-y-4">
                     {integrations.length > 0 ? (
-                        integrations.map(integration => (
-                             <IntegrationCard
-                                key={integration.id}
-                                integration={integration}
-                                onSync={() => { syncMutation.mutate({ integrationId: integration.id, platform: integration.platform }); }}
-                                onDisconnect={(formData) => { disconnectMutation.mutate(formData); }}
-                            />
-                        ))
+                        <>
+                            {integrations.map(integration => (
+                                 <IntegrationCard
+                                    key={integration.id}
+                                    integration={integration}
+                                    onSync={() => { syncMutation.mutate({ integrationId: integration.id, platform: integration.platform }); }}
+                                    onDisconnect={(formData) => { disconnectMutation.mutate(formData); }}
+                                />
+                            ))}
+                            <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                                <p className="text-sm text-blue-700 dark:text-blue-300">
+                                    💡 <strong>Tip:</strong> Your store syncs automatically, but you can click "Sync Now" anytime to get the latest updates immediately.
+                                </p>
+                            </div>
+                        </>
                     ) : (
                         <Card className="text-center p-8 border-dashed">
-                           <CardTitle>No Integrations Connected</CardTitle>
-                           <CardDescription className="mt-2">Connect an app below to get started.</CardDescription>
+                           <CardTitle>No Integration Connected</CardTitle>
+                           <CardDescription className="mt-2">Connect your store below to get started.</CardDescription>
                         </Card>
                     )}
                 </div>
@@ -232,26 +244,27 @@ export function IntegrationsClientPage() {
             )}
             
             <section data-testid="integrations-available">
-                <h2 className="text-xl font-semibold mb-4">Available Integrations</h2>
+                <h2 className="text-xl font-semibold mb-4">Choose Your Platform</h2>
+                <p className="text-sm text-muted-foreground mb-6">Connect one of the supported e-commerce platforms to sync your store data.</p>
                 <div className="space-y-4">
                     {!connectedPlatforms.has('shopify') && (
                          <PlatformConnectCard 
                             platform="shopify"
-                            description="Sync your products, inventory levels, and orders directly from your Shopify store."
+                            description="Connect your Shopify store to sync products, inventory, and orders automatically."
                             onConnectClick={() => { setIsShopifyModalOpen(true); }}
                          />
                     )}
                     {!connectedPlatforms.has('woocommerce') && (
                          <PlatformConnectCard 
                             platform="woocommerce"
-                            description="Sync your products, inventory, and orders from your WooCommerce-powered site."
+                            description="Connect your WooCommerce site to manage inventory and orders in one place."
                             onConnectClick={() => { setIsWooCommerceModalOpen(true); }}
                          />
                     )}
                      {!connectedPlatforms.has('amazon_fba') && (
                          <PlatformConnectCard 
                             platform="amazon_fba"
-                            description="Connect your Amazon Seller Central account to manage FBA inventory."
+                            description="Connect your Amazon Seller account to track FBA inventory and sales."
                             onConnectClick={() => { setIsAmazonModalOpen(true); }}
                          />
                     )}

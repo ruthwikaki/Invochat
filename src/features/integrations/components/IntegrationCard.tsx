@@ -56,15 +56,19 @@ export function IntegrationCard({ integration, onSync, onDisconnect }: Integrati
             case 'syncing':
                 return <span className="flex items-center gap-2 text-sm text-blue-500"><Loader2 className="h-4 w-4 animate-spin" /> Starting sync...</span>;
             case 'syncing_products':
-                return <span className="flex items-center gap-2 text-sm text-blue-500"><Loader2 className="h-4 w-4 animate-spin" /> Syncing products...</span>;
+                return <span className="flex items-center gap-2 text-sm text-blue-500"><Loader2 className="h-4 w-4 animate-spin" /> Updating products...</span>;
+            case 'syncing_sales':
+                return <span className="flex items-center gap-2 text-sm text-blue-500"><Loader2 className="h-4 w-4 animate-spin" /> Updating orders...</span>;
             case 'syncing_orders':
-                return <span className="flex items-center gap-2 text-sm text-blue-500"><Loader2 className="h-4 w-4 animate-spin" /> Syncing orders...</span>;
+                return <span className="flex items-center gap-2 text-sm text-blue-500"><Loader2 className="h-4 w-4 animate-spin" /> Updating orders...</span>;
             case 'success':
-                return <span className="flex items-center gap-2 text-sm text-success"><CheckCircle className="h-4 w-4" /> Last synced {formattedDate || 'never'}</span>;
+                return <span className="flex items-center gap-2 text-sm text-green-600"><CheckCircle className="h-4 w-4" /> Up to date • Last synced {formattedDate || 'never'}</span>;
             case 'failed':
-                return <span className="flex items-center gap-2 text-sm text-destructive"><AlertTriangle className="h-4 w-4" /> Sync failed</span>;
+                return <span className="flex items-center gap-2 text-sm text-destructive"><AlertTriangle className="h-4 w-4" /> Sync failed • Please try again</span>;
+            case 'idle':
+                return <span className="text-sm text-muted-foreground">Ready to sync • Click "Sync Now" to update</span>;
             default:
-                return <span className="text-sm text-muted-foreground">Ready to sync.</span>;
+                return <span className="text-sm text-muted-foreground">Ready to sync • Click "Sync Now" to update</span>;
         }
     };
 
@@ -90,9 +94,14 @@ export function IntegrationCard({ integration, onSync, onDisconnect }: Integrati
                     {renderStatus()}
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" onClick={() => { onSync(integration.id, integration.platform); }} disabled={isSyncing}>
-                        <RefreshCw className={`mr-2 h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
-                        Sync Now
+                    <Button 
+                        variant="outline" 
+                        onClick={() => { onSync(integration.id, integration.platform); }} 
+                        disabled={isSyncing}
+                        className="min-w-[120px] border-primary/20 hover:border-primary/40 hover:bg-primary/5"
+                    >
+                        <RefreshCw className={`mr-2 h-4 w-4 ${isSyncing ? 'animate-spin text-primary' : 'text-primary'}`} />
+                        {isSyncing ? 'Syncing...' : 'Sync Now'}
                     </Button>
                      <AlertDialog>
                         <AlertDialogTrigger asChild>
