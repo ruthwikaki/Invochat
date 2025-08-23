@@ -45,3 +45,82 @@ next-env.d.ts
 src/.env
 src/.env.*
 tests/test_data/test_credentials.json
+
+# Playwright test results and artifacts
+/test-results/
+/playwright-report/
+/playwright/.auth/
+playwright/.auth/
+test-results/
+playwright-report/
+
+# Test debugging files and artifacts
+*.png
+*.webm
+error-context.md
+test-failed-*.png
+test-failed-*.webm
+**/test-results/
+**/playwright-report/
+
+# Backup files
+*.bak
+*.backup
+
+# Log files
+*.log
+firebase-debug.log
+firestore-debug.log
+
+# Cache and temporary files
+.cache/
+tmp/
+temp/
+
+# Analysis and documentation files (generated)
+*.md
+!README.md
+!docs/*.md
+COMPREHENSIVE_AUDIT_REPORT.md
+DATABASE_FIX_SUMMARY.md
+E2E_TEST_SUMMARY.md
+ENHANCED_FILES_CLEANUP_PLAN.md
+FILES_TO_DELETE_LIST.md
+IMMEDIATE_ACTION_LIST.md
+INFRASTRUCTURE_IMPLEMENTATION_STATUS.md
+PHASE_*.md
+PRIORITY_*.md
+PRIVACY_AI_COMPLIANCE_ANALYSIS.md
+PRODUCTION_READY.md
+TECHNICAL_INFRASTRUCTURE_IMPROVEMENTS_PLAN.md
+TESTING_COVERAGE_ACHIEVEMENT.md
+TEST_COVERAGE_SUMMARY.md
+TYPESCRIPT_FIXED_CLEANUP_READY.md
+
+# Test and analysis scripts (generated)
+analyze-*.js
+check-*.js
+fix-*.js
+generate-*.js
+run-*.js
+final-status-report.js
+test-*.js
+test-*.mjs
+
+# Generated SQL files
+*_dump.sql
+*_corrected_schema.sql
+*_performance_optimization.sql
+fix_*.sql
+script2_*.sql
+
+# Test data and reports
+test-coverage-report.json
+src/test-reports/
+tests/__pycache__/
+tests/**/__pycache__/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
